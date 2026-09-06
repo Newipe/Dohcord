@@ -21,8 +21,7 @@ addPatch({
     ],
 
     getPlatformClass() {
-        if (isMac) return "platform-osx";
-        if (!Settings.store.nativeTitleBar) return "platform-win";
-        return "platform-web";
+        if (Settings.store.nativeTitleBar) return "platform-web";
+        return isMac ? "platform-osx" : "platform-win";
     }
 });
