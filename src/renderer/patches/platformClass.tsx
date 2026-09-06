@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+import { Settings } from "renderer/settings";
 import { isMac } from "renderer/utils";
 
 import { addPatch } from "./shared";
@@ -21,6 +22,7 @@ addPatch({
 
     getPlatformClass() {
         if (isMac) return "platform-osx";
+        if (!Settings.store.nativeTitleBar) return "platform-win";
         return "platform-web";
     }
 });
