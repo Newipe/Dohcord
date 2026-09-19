@@ -10,7 +10,7 @@ import { CommandLine } from "./cli";
 import { downloadVencordFiles } from "./utils/vencordLoader";
 
 if (CommandLine.values.repair) {
-    console.log("Repairing Vesktop...");
+    console.log("Repairing Dohcord...");
     downloadVencordFiles().then(() => app.quit());
 } else {
     require("./main");

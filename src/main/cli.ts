@@ -64,7 +64,7 @@ const extraOptions = {
     "ozone-platform": {
         hidden: process.platform !== "linux",
         type: "string",
-        description: "Whether to run Vesktop in Wayland or X11 (XWayland)",
+        description: "Whether to run Dohcord in Wayland or X11 (XWayland)",
         options: ["x11", "wayland"]
     }
 } satisfies Record<string, Option>;
@@ -84,7 +84,7 @@ export function checkCommandLineForHelpOrVersion() {
     const { help, version } = CommandLine.values;
 
     if (version) {
-        console.log(`Vesktop v${app.getVersion()}`);
+        console.log(`Dohcord v${app.getVersion()}`);
         app.exit(0);
     }
 

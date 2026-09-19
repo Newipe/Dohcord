@@ -90,7 +90,7 @@ function initMenuBar(win: BrowserWindow) {
             toolTip: "Dohcord will automatically restart after this operation"
         },
         {
-            label: "Reset Vesktop",
+            label: "Reset Dohcord",
             async click() {
                 await clearData(win);
             },
@@ -180,7 +180,7 @@ function initMenuBar(win: BrowserWindow) {
 
     const menuItems = [
         {
-            label: "Vesktop",
+            label: "Dohcord",
             role: "appMenu",
             submenu: subMenu.filter(isTruthy)
         },
@@ -289,7 +289,7 @@ function initStaticTitle(win: BrowserWindow) {
 
     addSettingsListener("staticTitle", enabled => {
         if (enabled) {
-            win.setTitle("Vesktop");
+            win.setTitle("Dohcord");
             win.on("page-title-updated", listener);
         } else {
             win.off("page-title-updated", listener);
@@ -382,7 +382,7 @@ function buildBrowserWindowOptions(): BrowserWindowConstructorOptions {
     }
 
     if (staticTitle) {
-        options.title = "Vesktop";
+        options.title = "Dohcord";
     }
 
     if (process.platform === "darwin") {

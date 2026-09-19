@@ -76,7 +76,7 @@ interface Source {
 
 export let currentSettings: StreamSettings | null = null;
 
-const logger = new Logger("VesktopScreenShare");
+const logger = new Logger("DohcordScreenShare");
 
 addPatch({
     patches: [

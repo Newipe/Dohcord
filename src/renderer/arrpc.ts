@@ -13,7 +13,7 @@ import { IpcCommands } from "shared/IpcEvents";
 import { onIpcCommand } from "./ipcCommands";
 import { Settings } from "./settings";
 
-const logger = new Logger("VesktopRPC", "#5865f2");
+const logger = new Logger("DohcordRPC", "#5865f2");
 
 const arRPC = Vencord.Plugins.plugins["WebRichPresence (arRPC)"] as typeof arRpcPlugin;
 
