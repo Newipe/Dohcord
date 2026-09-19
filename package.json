@@ -1,10 +1,10 @@
 {
-    "name": "vesktop",
+    "name": "dohcord",
     "version": "1.6.7",
     "private": true,
-    "description": "Vesktop is a custom Discord desktop app",
+    "description": "Dohcord is a custom Discord desktop app with native DNS over HTTPS",
     "keywords": [],
-    "homepage": "https://vencord.dev/",
+    "homepage": "https://vencord.dev",
     "license": "GPL-3.0-or-later",
     "author": "Vendicated <vendicated@riseup.net>",
     "main": "dist/js/main.js",
@@ -66,9 +66,9 @@
         "pnpm": ">=11"
     },
     "build": {
-        "appId": "dev.vencord.vesktop",
-        "productName": "Vesktop",
-        "executableName": "vesktop",
+        "appId": "dev.newipe.dohcord",
+        "productName": "Dohcord",
+        "executableName": "dohcord",
         "files": [
             "!*",
             "!node_modules",
@@ -121,13 +121,13 @@
             ],
             "desktop": {
                 "entry": {
-                    "Name": "Vesktop",
+                    "Name": "Dohcord",
                     "GenericName": "Internet Messenger",
                     "Type": "Application",
                     "Categories": "Network;InstantMessaging;Chat;",
                     "Keywords": "discord;vencord;electron;chat;",
                     "MimeType": "x-scheme-handler/discord",
-                    "StartupWMClass": "vesktop"
+                    "StartupWMClass": "dohcord"
                 }
             }
         },

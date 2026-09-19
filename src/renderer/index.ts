@@ -21,15 +21,15 @@ import { Settings } from "./settings";
 export { Settings };
 
 VesktopLogger.log("read if cute :3");
-VesktopLogger.log("Vesktop v" + VesktopNative.app.getVersion());
+VesktopLogger.log("Dohcord v" + VesktopNative.app.getVersion());
 
 const SettingsPlugin = Vencord.Plugins.plugins
     .Settings as typeof import("@vencord/types/plugins/_core/settings").default;
 
 SettingsPlugin.customEntries.push({
-    key: "vesktop",
-    title: "Vesktop",
-    panelTitle: "Vesktop Settings",
+    key: "dohcord",
+    title: "Dohcord",
+    panelTitle: "Dohcord Settings",
     Component: SettingsUi,
     Icon: VesktopSettingsIcon
 });

@@ -2,7 +2,7 @@
 <meta charset="utf-8" />
 
 <head>
-    <title>Vesktop Setup</title>
+    <title>Dohcord Setup</title>
 
     <link rel="stylesheet" href="./common.css" type="text/css" />
 
@@ -156,7 +156,7 @@
 </head>
 
 <body>
-    <h1>Welcome to Vesktop</h1>
+    <h1>Welcome to Dohcord</h1>
     <p>Let's customise your experience!</p>
 
     <form>
@@ -172,7 +172,7 @@
         <label>
             <div>
                 <h2>Start with System</h2>
-                <span>Automatically open Vesktop when your computer starts</span>
+                <span>Automatically open Dohcord when your computer starts</span>
             </div>
             <input type="checkbox" name="autoStart" />
         </label>
@@ -237,7 +237,7 @@
     const dohProviderSelect = document.getElementById('dohProviderSelect');
     const dohUrlLabel = document.getElementById('dohUrlLabel');
     const dohUrlInput = document.querySelector('input[name="dohUrl"]');
-    const remoteResolversUrl = 'https://raw.githubusercontent.com/Newipe/Vesktop/main/resolvers.json';
+    const remoteResolversUrl = 'https://raw.githubusercontent.com/Newipe/Dohcord/main/resolvers.json';
 
     fetch(remoteResolversUrl)
         .then(response => response.ok ? response.json() : Promise.reject())

@@ -77,7 +77,7 @@ function initMenuBar(win: BrowserWindow) {
 
     const subMenu = [
         {
-            label: "About Vesktop",
+            label: "About Dohcord",
             click: createAboutWindow
         },
         {
@@ -87,14 +87,14 @@ function initMenuBar(win: BrowserWindow) {
                 app.relaunch();
                 app.quit();
             },
-            toolTip: "Vesktop will automatically restart after this operation"
+            toolTip: "Dohcord will automatically restart after this operation"
         },
         {
             label: "Reset Vesktop",
             async click() {
                 await clearData(win);
             },
-            toolTip: "Vesktop will automatically restart after this operation"
+            toolTip: "Dohcord will automatically restart after this operation"
         },
         {
             label: "Relaunch",

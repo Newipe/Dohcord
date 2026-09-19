@@ -9,7 +9,7 @@ export interface DohResolver {
     url: string;
 }
 
-export const REMOTE_DOH_RESOLVERS_URL = "https://raw.githubusercontent.com/Newipe/Vesktop/main/resolvers.json";
+export const REMOTE_DOH_RESOLVERS_URL = "https://raw.githubusercontent.com/Newipe/Dohcord/main/resolvers.json";
 
 export const DEFAULT_DOH_RESOLVERS: DohResolver[] = [
     { label: "Cloudflare (1.1.1.1)", url: "https://cloudflare-dns.com/dns-query" },

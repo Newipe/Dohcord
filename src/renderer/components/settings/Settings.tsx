@@ -61,7 +61,7 @@ const SettingsOptions: Record<string, Array<BooleanSetting | SettingsComponent>>
         {
             key: "staticTitle",
             title: "Static Title",
-            description: 'Makes the window title "Vesktop" instead of changing to the current page'
+            description: 'Makes the window title "Dohcord" instead of changing to the current page'
         },
         {
             key: "enableMenu",
@@ -85,7 +85,7 @@ const SettingsOptions: Record<string, Array<BooleanSetting | SettingsComponent>>
             key: "enableSplashScreen",
             title: "Enable Splash Screen",
             description:
-                "Shows a small splash screen while Vesktop is loading. Disabling this option will show the main window earlier while it's still loading."
+                "Shows a small splash screen while Dohcord is loading. Disabling this option will show the main window earlier while it's still loading."
         },
         {
             key: "splashTheming",
@@ -99,20 +99,20 @@ const SettingsOptions: Record<string, Array<BooleanSetting | SettingsComponent>>
         {
             key: "tray",
             title: "Tray Icon",
-            description: "Add a tray icon for Vesktop",
+            description: "Add a tray icon for Dohcord",
             invisible: () => isMac
         },
         {
             key: "minimizeToTray",
             title: "Minimize to tray",
-            description: "Hitting X will make Vesktop minimize to the tray instead of closing",
+            description: "Hitting X will make Dohcord minimize to the tray instead of closing",
             invisible: () => isMac,
             disabled: () => !Settings.store.tray
         },
         {
             key: "clickTrayToShowHide",
             title: "Hide/Show on tray click",
-            description: "Left clicking tray icon will toggle the vesktop window visibility."
+            description: "Left clicking tray icon will toggle the Dohcord window visibility."
         },
         {
             key: "disableMinSize",
@@ -143,7 +143,7 @@ const SettingsOptions: Record<string, Array<BooleanSetting | SettingsComponent>>
         {
             key: "openLinksWithElectron",
             title: "Open Links in app (experimental)",
-            description: "Opens links in a new Vesktop window instead of your web browser"
+            description: "Opens links in a new Dohcord window instead of your web browser"
         },
 
         WebRTCIPHandlingPolicyPicker,
@@ -199,6 +199,6 @@ export default ErrorBoundary.wrap(
     },
     {
         message:
-            "Failed to render the Vesktop Settings tab. If this issue persists, try to right click the Vesktop tray icon, then click 'Repair Vencord'. And make sure your Vesktop is up to date."
+            "Failed to render the Dohcord Settings tab. If this issue persists, try to right click the Dohcord tray icon, then click 'Repair Vencord'. And make sure your Dohcord is up to date."
     }
 );
