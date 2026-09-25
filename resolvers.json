@@ -1,26 +1,32 @@
 [
     {
         "label": "Cloudflare (1.1.1.1)",
-        "url": "https://cloudflare-dns.com/dns-query"
+        "url": "https://cloudflare-dns.com/dns-query",
+        "description": "Fast privacy focused resolver operated by Cloudflare."
     },
     {
         "label": "Google (dns.google)",
-        "url": "https://dns.google/dns-query"
+        "url": "https://dns.google/dns-query",
+        "description": "Reliable global resolver operated by Google."
     },
     {
-        "label": "Newipe (newipe.qd.je) - Iran only",
-        "url": "https://newipe.qd.je/dns-query"
+        "label": "Newipe (newipe.qd.je)",
+        "url": "https://newipe.qd.je/dns-query",
+        "description": "Routes Discord through an SNI proxy. Recommended in Iran, may not work elsewhere."
     },
     {
-        "label": "VanillaApp (vanillapp.ir) - Requires IP registration",
-        "url": "https://dns.vanillapp.ir/dns-query"
+        "label": "VanillaApp (vanillapp.ir)",
+        "url": "https://dns.vanillapp.ir/dns-query",
+        "description": "Iranian resolver. Requires registering your IP with the provider first."
     },
     {
         "label": "Quad9 (dns.quad9.net)",
-        "url": "https://dns.quad9.net/dns-query"
+        "url": "https://dns.quad9.net/dns-query",
+        "description": "Blocks domains known to distribute malware and phishing."
     },
     {
         "label": "OpenDNS (doh.opendns.com)",
-        "url": "https://doh.opendns.com/dns-query"
+        "url": "https://doh.opendns.com/dns-query",
+        "description": "Cisco's resolver, with optional content filtering."
     }
 ]

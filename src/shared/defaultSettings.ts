@@ -29,5 +29,8 @@ export const DefaultVesktopSettings: Settings = {
     splashPixelated: false,
     webRTCIPHandlingPolicy: "default",
     appBadge: true,
-    transparencyOption: "none"
+    transparencyOption: "none",
+    enableDoh: false,
+    dohUrl: undefined,
+    dohAllowFallback: false
 };

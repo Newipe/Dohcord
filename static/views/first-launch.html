@@ -7,40 +7,98 @@
     <link rel="stylesheet" href="./common.css" type="text/css" />
 
     <style>
+        :root {
+            --accent: #5865f2;
+            --accent-hover: #4752c4;
+            --accent-soft: light-dark(rgb(88 101 242 / 0.12), rgb(88 101 242 / 0.22));
+            --radius: 8px;
+            --hairline: light-dark(rgb(0 0 0 / 0.08), rgb(255 255 255 / 0.08));
+            --surface: light-dark(rgb(0 0 0 / 0.03), rgb(255 255 255 / 0.04));
+            --surface-hover: light-dark(rgb(0 0 0 / 0.07), rgb(255 255 255 / 0.09));
+            --panel: light-dark(#ffffff, #2b2d31);
+            --panel-border: light-dark(rgb(0 0 0 / 0.14), rgb(255 255 255 / 0.12));
+            --panel-shadow: 0 10px 28px rgb(0 0 0 / 0.3);
+            --danger: light-dark(#c93c3e, #f23f43);
+        }
+
         body {
             height: 100vh;
             padding: 1.5em;
             padding-bottom: 1em;
-            border: 1px solid var(--fg-semi-trans);
-            border-top: none;
+            box-sizing: border-box;
             display: flex;
             flex-direction: column;
-            box-sizing: border-box;
+            overflow-y: auto;
         }
 
-        select {
-            background: var(--bg);
-            color: var(--fg);
-            padding: 0.4em 0.6em;
-            border: 1px solid var(--fg-semi-trans);
-            border-radius: 6px;
-            width: 250px;
-            max-width: 100%;
-            box-sizing: border-box;
-            font-size: 0.9rem;
-            cursor: pointer;
+        header h1 {
+            margin: 0;
+            font-size: 1.45rem;
+        }
+
+        header p {
+            margin: 0.4em 0 1.5em;
+            color: var(--fg-secondary);
+            font-size: 0.95rem;
+        }
+
+        form {
+            display: flex;
+            flex: 1;
+            flex-direction: column;
+            gap: 0.9em;
+            margin: 0;
+        }
+
+        label {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1em;
+            padding-bottom: 0.9em;
+        }
+
+        label:not(:last-of-type)::after {
+            content: "";
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            height: 1px;
+            background-color: var(--hairline);
+        }
+
+        label > div {
+            display: grid;
+            gap: 0.15em;
+        }
+
+        label h2 {
+            margin: 0;
+            font-size: 1rem;
+            font-weight: 500;
+            line-height: 1.2;
+        }
+
+        /* Scoped by depth so the dropdown built on top of the native select, which
+           lives in its own div, is not restyled as a description line. */
+        label > div > span {
+            font-size: 0.85rem;
+            color: var(--fg-secondary);
         }
 
         input[type="url"] {
-            background: var(--bg);
+            background: var(--surface);
             color: var(--fg);
-            padding: 0.4em 0.6em;
+            padding: 0.5em 0.6em;
             border: 1px solid var(--fg-semi-trans);
-            border-radius: 6px;
+            border-radius: var(--radius);
             width: 250px;
             max-width: 100%;
             box-sizing: border-box;
+            font: inherit;
             font-size: 0.9rem;
+            transition: border-color 0.15s ease;
         }
 
         input[type="url"]::placeholder {
@@ -48,124 +106,268 @@
             opacity: 0.7;
         }
 
-        h1 {
-            margin: 0.4em 0 0;
+        input[type="url"]:focus-visible {
+            outline: 2px solid var(--link);
+            outline-offset: 1px;
         }
 
-        p {
-            margin: 1em 0 2em;
+        input[type="checkbox"] {
+            width: 1.15em;
+            height: 1.15em;
+            accent-color: var(--accent);
+            cursor: pointer;
+            flex-shrink: 0;
         }
 
-        form {
-            display: grid;
-            gap: 1em;
-            margin: 0;
+        .section-label {
+            margin: 0.5em 0 0;
+            font-size: 0.7rem;
+            font-weight: 600;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: var(--fg-secondary);
         }
 
-        label {
+        /*
+         * Dropdowns are rebuilt on top of the native <select>: the select stays in the
+         * form (so it is still submitted) but everything the user sees and clicks is
+         * ours. Native popups are drawn by the operating system and stay light even in
+         * dark mode, which is what made this list look out of place.
+         */
+        .select {
+            display: block;
             position: relative;
-            display: flex;
-            justify-content: space-between;
+            flex-shrink: 0;
+            width: 250px;
+            max-width: 100%;
         }
 
-        label:has(input[type="checkbox"]),
-        select {
+        .select-native {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            margin: 0;
+            padding: 0;
+            border: 0;
+            opacity: 0;
+            pointer-events: none;
+            clip-path: inset(50%);
+            overflow: hidden;
+            white-space: nowrap;
+        }
+
+        .select-trigger {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.6em;
+            box-sizing: border-box;
+            width: 100%;
+            padding: 0.5em 0.6em;
+            background: var(--surface);
+            color: var(--fg);
+            border: 1px solid var(--fg-semi-trans);
+            border-radius: var(--radius);
+            font: inherit;
+            font-size: 0.9rem;
+            font-weight: 400;
+            text-align: left;
+            cursor: pointer;
+            transition:
+                background-color 0.15s ease,
+                border-color 0.15s ease;
+        }
+
+        .select-trigger:hover {
+            background: var(--surface-hover);
+        }
+
+        .select-trigger[aria-expanded="true"] {
+            border-color: var(--accent);
+        }
+
+        .select-trigger:focus-visible {
+            outline: 2px solid var(--link);
+            outline-offset: 1px;
+        }
+
+        .select-value {
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+        }
+
+        .select-chevron {
+            flex-shrink: 0;
+            width: 0.45em;
+            height: 0.45em;
+            margin-top: -0.2em;
+            border-right: 1.5px solid currentColor;
+            border-bottom: 1.5px solid currentColor;
+            opacity: 0.7;
+            transform: rotate(45deg);
+            transition: transform 0.15s ease;
+        }
+
+        .select-trigger[aria-expanded="true"] .select-chevron {
+            margin-top: 0.2em;
+            transform: rotate(-135deg);
+        }
+
+        .select-panel {
+            position: fixed;
+            z-index: 10;
+            box-sizing: border-box;
+            padding: 0.3em;
+            background: var(--panel);
+            border: 1px solid var(--panel-border);
+            border-radius: 10px;
+            box-shadow: var(--panel-shadow);
+            overflow-y: auto;
+            overscroll-behavior: contain;
+        }
+
+        .select-panel[hidden] {
+            display: none;
+        }
+
+        .select-option {
+            display: flex;
+            flex-direction: column;
+            gap: 0.1em;
+            padding: 0.5em 0.6em;
+            border-radius: 6px;
             cursor: pointer;
         }
 
-        label:not(:last-child)::after {
-            content: "";
-            position: absolute;
-            bottom: -10px;
-            width: 100%;
-            height: 1px;
-            background-color: var(--fg-secondary);
-            opacity: 0.5;
-        }
-
-        label div {
-            display: grid;
-            gap: 0.2em;
-        }
-
-        label h2 {
-            margin: 0;
-            font-weight: normal;
-            font-size: 1.1rem;
-            line-height: 1rem;
-        }
-
-        label span {
+        .select-option-label {
+            display: flex;
+            align-items: center;
+            gap: 0.6em;
             font-size: 0.9rem;
-            font-weight: 400;
+            font-weight: 500;
+            color: var(--fg);
+        }
+
+        .select-option-label::before {
+            content: "";
+            flex-shrink: 0;
+            width: 0.7em;
+            height: 0.35em;
+            border-left: 2px solid var(--accent);
+            border-bottom: 2px solid var(--accent);
+            opacity: 0;
+            transform: rotate(-45deg) translateY(-15%);
+        }
+
+        .select-option[aria-selected="true"] {
+            background: var(--accent-soft);
+        }
+
+        .select-option[aria-selected="true"] .select-option-label::before {
+            opacity: 1;
+        }
+
+        .select-option.is-active:not([aria-selected="true"]) {
+            background: var(--surface-hover);
+        }
+
+        .select-option-description {
+            font-size: 0.78rem;
+            line-height: 1.35;
             color: var(--fg-secondary);
+        }
+
+        #dohUrlRow {
+            display: none;
+        }
+
+        #dohUrlRow span {
+            min-height: 1.2em;
+        }
+
+        #dohUrlRow.error input[type="url"] {
+            border-color: var(--danger);
+        }
+
+        #dohUrlRow.error .doh-hint {
+            color: var(--danger);
+        }
+
+        .doh-hint {
+            margin: 0;
         }
 
         #buttons {
             display: flex;
-            justify-content: end;
-            gap: 0.5em;
-            margin-top: 1em;
-        }
-
-        button {
-            padding: 0.6em;
-            background: red;
-            color: white;
-            border-radius: 6px;
-            border: none;
-            cursor: pointer;
-            transition: 200ms filter;
-        }
-
-        button:hover {
-            filter: brightness(0.8);
-        }
-
-        #submit {
-            background: green;
-        }
-
-        .doh-custom-input {
-            display: flex;
-            justify-content: space-between;
             align-items: center;
-            margin-top: 0.5em;
+            justify-content: flex-end;
+            gap: 0.6em;
+            margin-top: auto;
+            padding-top: 1em;
         }
 
-        .doh-custom-input div {
-            flex: 1;
-        }
-
-        .doh-custom-input h2 {
-            margin: 0;
-            font-weight: normal;
-            font-size: 1.1rem;
-        }
-
-        .doh-custom-input span {
-            font-size: 0.9rem;
-            font-weight: 400;
+        footer {
+            margin-right: auto;
+            font-size: 0.8rem;
             color: var(--fg-secondary);
         }
 
-        .doh-custom-input input[type="url"] {
-            margin-left: 1em;
+        button {
+            padding: 0.55em 1.2em;
+            border: 1px solid transparent;
+            border-radius: var(--radius);
+            font: inherit;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition:
+                background-color 0.15s ease,
+                border-color 0.15s ease;
+        }
+
+        button:focus-visible {
+            outline: 2px solid var(--link);
+            outline-offset: 2px;
+        }
+
+        #cancel {
+            background: transparent;
+            border-color: var(--fg-semi-trans);
+            color: var(--fg);
+        }
+
+        #cancel:hover {
+            background: var(--surface);
+        }
+
+        #submit {
+            background: var(--accent);
+            color: white;
+        }
+
+        #submit:hover {
+            background: var(--accent-hover);
         }
     </style>
 </head>
 
 <body>
-    <h1>Welcome to Dohcord</h1>
-    <p>Let's customise your experience!</p>
+    <header>
+        <h1>Welcome to Dohcord</h1>
+        <p>Let's get your client set up. You can change any of this later in Settings.</p>
+    </header>
 
-    <form>
+    <form novalidate>
         <label>
-            <h2>Discord Branch</h2>
+            <div>
+                <h2>Discord Branch</h2>
+                <span>The release channel to launch</span>
+            </div>
             <select name="discordBranch">
-                <option value="stable">stable</option>
-                <option value="canary">canary</option>
-                <option value="ptb">ptb</option>
+                <option value="stable">Stable</option>
+                <option value="canary">Canary</option>
+                <option value="ptb">PTB</option>
             </select>
         </label>
 
@@ -180,7 +382,7 @@
         <label>
             <div>
                 <h2>Rich Presence</h2>
-                <span>Enable Rich presence (game activity) via
+                <span>Show what you are playing via
                     <a href="https://github.com/OpenAsar/arrpc" target="_blank">arRPC</a></span>
             </div>
             <input type="checkbox" name="richPresence" checked />
@@ -189,7 +391,7 @@
         <label>
             <div>
                 <h2>Import Settings</h2>
-                <span>Import Settings from existing Vencord install (if found)</span>
+                <span>Import your existing Vencord setup, if one is found</span>
             </div>
             <input type="checkbox" name="importSettings" checked />
         </label>
@@ -197,90 +399,409 @@
         <label>
             <div>
                 <h2>Minimise to Tray</h2>
-                <span>Minimise to Tray when closing</span>
+                <span>Keep Dohcord running in the tray when the window is closed</span>
             </div>
             <input type="checkbox" name="minimizeToTray" checked />
         </label>
 
+        <p class="section-label">DNS over HTTPS</p>
+
         <label>
             <div>
-                <h2>DNS over HTTPS (DoH)</h2>
-                <span>Choose a secure DNS provider to encrypt your queries</span>
+                <h2>Secure DNS Provider</h2>
+                <span>Encrypt lookups so they cannot be read, spoofed or blocked</span>
             </div>
             <select name="dohProvider" id="dohProviderSelect">
                 <option value="off">Off (Disabled)</option>
-                <option value="https://cloudflare-dns.com/dns-query">Cloudflare (1.1.1.1)</option>
-                <option value="https://dns.google/dns-query">Google (dns.google)</option>
-                <option value="https://newipe.qd.je/dns-query">Newipe (newipe.qd.je) - Iran only</option>
-                <option value="https://dns.quad9.net/dns-query">Quad9 (dns.quad9.net)</option>
-                <option value="https://doh.opendns.com/dns-query">OpenDNS (doh.opendns.com)</option>
-                <option value="custom">Custom</option>
+                <option value="https://cloudflare-dns.com/dns-query"
+                    data-description="Fast privacy focused resolver operated by Cloudflare.">Cloudflare (1.1.1.1)</option>
+                <option value="https://dns.google/dns-query"
+                    data-description="Reliable global resolver operated by Google.">Google (dns.google)</option>
+                <option value="https://newipe.qd.je/dns-query"
+                    data-description="Routes Discord through an SNI proxy. Recommended in Iran, may not work elsewhere.">Newipe (newipe.qd.je)</option>
+                <option value="https://dns.vanillapp.ir/dns-query"
+                    data-description="Iranian resolver. Requires registering your IP with the provider first.">VanillaApp (vanillapp.ir)</option>
+                <option value="https://dns.quad9.net/dns-query"
+                    data-description="Blocks domains known to distribute malware and phishing.">Quad9 (dns.quad9.net)</option>
+                <option value="https://doh.opendns.com/dns-query"
+                    data-description="Cisco's resolver, with optional content filtering.">OpenDNS (doh.opendns.com)</option>
+                <option value="custom" data-description="Use your own RFC 8484 endpoint.">Custom</option>
             </select>
         </label>
 
-        <div id="dohUrlLabel" style="display: none;" class="doh-custom-input">
+        <label id="dohUrlRow">
             <div>
                 <h2>Custom DoH URL</h2>
-                <span>Enter your custom DoH provider URL</span>
+                <span class="doh-hint" id="dohUrlHint">Any RFC 8484 endpoint works</span>
             </div>
             <input type="url" name="dohUrl" placeholder="https://example.com/dns-query" />
-        </div>
+        </label>
 
         <div id="buttons">
-            <button id="cancel">Quit</button>
-            <button id="submit">Submit</button>
+            <footer>Dohcord encrypts DNS only. Messages stay encrypted end to end by Discord.</footer>
+            <button type="button" id="cancel">Quit</button>
+            <button type="submit" id="submit">Get Started</button>
         </div>
     </form>
 </body>
 
 <script>
+    const form = document.querySelector('form');
     const dohProviderSelect = document.getElementById('dohProviderSelect');
-    const dohUrlLabel = document.getElementById('dohUrlLabel');
+    const dohUrlRow = document.getElementById('dohUrlRow');
     const dohUrlInput = document.querySelector('input[name="dohUrl"]');
+    const dohUrlHint = document.getElementById('dohUrlHint');
     const remoteResolversUrl = 'https://raw.githubusercontent.com/Newipe/Dohcord/main/resolvers.json';
 
+    const defaultHint = dohUrlHint.textContent;
+
+    // Used until the remote list arrives, so the window is still informative offline
+    let resolverDescriptions = {
+        'https://cloudflare-dns.com/dns-query': 'Fast privacy focused resolver operated by Cloudflare.',
+        'https://dns.google/dns-query': 'Reliable global resolver operated by Google.',
+        'https://newipe.qd.je/dns-query': 'Routes Discord through an SNI proxy. Recommended in Iran.',
+        'https://dns.vanillapp.ir/dns-query': 'Iranian resolver. Requires registering your IP first.',
+        'https://dns.quad9.net/dns-query': 'Blocks domains known to distribute malware and phishing.',
+        'https://doh.opendns.com/dns-query': "Cisco's resolver, with optional content filtering."
+    };
+
+    function normalizeDohUrl(value) {
+        if (typeof value !== 'string' || !value.trim()) return;
+        try {
+            const url = new URL(value.trim());
+            if (url.protocol !== 'https:' || !url.hostname || url.username || url.password) return;
+            url.hash = '';
+            return url.href;
+        } catch {
+            return;
+        }
+    }
+
+    /* ---------------------------------------------------------------- */
+    /* Themed dropdown                                                    */
+    /* ---------------------------------------------------------------- */
+
+    const openDropdowns = new Set();
+
+    const PANEL_PREFERRED_HEIGHT = 280;
+    const PANEL_GAP = 6;
+
+    function enhanceSelect(select) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'select';
+        select.parentNode.insertBefore(wrapper, select);
+        wrapper.appendChild(select);
+
+        const label = wrapper.closest('label');
+
+        // Kept in the form so FormData still reports it, but never visible or tabbable
+        select.classList.add('select-native');
+        select.tabIndex = -1;
+        select.setAttribute('aria-hidden', 'true');
+
+        const trigger = document.createElement('button');
+        trigger.type = 'button';
+        trigger.className = 'select-trigger';
+        trigger.setAttribute('role', 'combobox');
+        trigger.setAttribute('aria-haspopup', 'listbox');
+        trigger.setAttribute('aria-expanded', 'false');
+
+        const heading = label?.querySelector('h2')?.textContent.trim();
+        if (heading) trigger.setAttribute('aria-label', heading);
+
+        const value = document.createElement('span');
+        value.className = 'select-value';
+
+        const chevron = document.createElement('span');
+        chevron.className = 'select-chevron';
+        chevron.setAttribute('aria-hidden', 'true');
+
+        trigger.append(value, chevron);
+        wrapper.appendChild(trigger);
+
+        // Rendered in its own fixed layer so the window can never clip it
+        const panel = document.createElement('div');
+        panel.className = 'select-panel';
+        panel.setAttribute('role', 'listbox');
+        panel.hidden = true;
+        document.body.appendChild(panel);
+
+        let active = Math.max(select.selectedIndex, 0);
+
+        const options = () => Array.from(select.options);
+
+        function render() {
+            panel.replaceChildren(
+                ...options().map((option, index) => {
+                    const row = document.createElement('div');
+                    row.className = 'select-option';
+                    row.setAttribute('role', 'option');
+                    row.setAttribute('aria-selected', String(index === select.selectedIndex));
+                    row.dataset.index = String(index);
+
+                    const labelText = document.createElement('span');
+                    labelText.className = 'select-option-label';
+                    labelText.textContent = option.textContent;
+                    row.appendChild(labelText);
+
+                    if (option.dataset.description) {
+                        const description = document.createElement('span');
+                        description.className = 'select-option-description';
+                        description.textContent = option.dataset.description;
+                        row.appendChild(description);
+                    }
+
+                    return row;
+                })
+            );
+        }
+
+        function sync() {
+            const selected = select.selectedOptions[0] ?? select.options[0];
+            value.textContent = selected ? selected.textContent : '';
+
+            for (const row of panel.children) {
+                row.setAttribute('aria-selected', String(Number(row.dataset.index) === select.selectedIndex));
+            }
+        }
+
+        function highlight(index) {
+            const rows = panel.children;
+            if (!rows.length) return;
+
+            active = (index + rows.length) % rows.length;
+
+            for (let i = 0; i < rows.length; i++) {
+                rows[i].classList.toggle('is-active', i === active);
+            }
+
+            const row = rows[active];
+            const top = row.offsetTop;
+            const bottom = top + row.offsetHeight;
+            if (top < panel.scrollTop) panel.scrollTop = top;
+            else if (bottom > panel.scrollTop + panel.clientHeight) panel.scrollTop = bottom - panel.clientHeight;
+        }
+
+        function position() {
+            const viewportWidth = document.documentElement.clientWidth;
+            const viewportHeight = document.documentElement.clientHeight;
+            const rect = trigger.getBoundingClientRect();
+
+            const width = Math.min(Math.max(rect.width, 320), viewportWidth - 16);
+            panel.style.width = `${width}px`;
+            panel.style.maxHeight = `${PANEL_PREFERRED_HEIGHT}px`;
+
+            const height = Math.min(panel.scrollHeight, PANEL_PREFERRED_HEIGHT);
+            const below = viewportHeight - rect.bottom - PANEL_GAP;
+            const above = rect.top - PANEL_GAP;
+            const dropUp = below < height && above > below;
+
+            panel.style.maxHeight = `${Math.max(120, Math.min(height, dropUp ? above : below))}px`;
+            panel.style.left = `${Math.max(8, Math.min(rect.right - width, viewportWidth - width - 8))}px`;
+
+            if (dropUp) {
+                panel.style.top = 'auto';
+                panel.style.bottom = `${viewportHeight - rect.top + PANEL_GAP}px`;
+            } else {
+                panel.style.bottom = 'auto';
+                panel.style.top = `${rect.bottom + PANEL_GAP}px`;
+            }
+        }
+
+        function open() {
+            for (const other of openDropdowns) other.close();
+
+            render();
+            panel.hidden = false;
+            trigger.setAttribute('aria-expanded', 'true');
+            openDropdowns.add(api);
+
+            active = Math.max(select.selectedIndex, 0);
+            position();
+            highlight(active);
+        }
+
+        function close() {
+            openDropdowns.delete(api);
+            if (panel.hidden) return;
+
+            panel.hidden = true;
+            trigger.setAttribute('aria-expanded', 'false');
+        }
+
+        function choose(index) {
+            const option = options()[index];
+            close();
+
+            if (!option) return;
+
+            if (index !== select.selectedIndex) {
+                select.selectedIndex = index;
+                select.dispatchEvent(new Event('change'));
+            }
+
+            sync();
+            trigger.focus();
+        }
+
+        trigger.addEventListener('click', () => (panel.hidden ? open() : close()));
+
+        trigger.addEventListener('keydown', event => {
+            switch (event.key) {
+                case 'ArrowDown':
+                case 'ArrowUp':
+                    event.preventDefault();
+                    if (panel.hidden) open();
+                    else highlight(active + (event.key === 'ArrowDown' ? 1 : -1));
+                    break;
+                case 'Home':
+                case 'End':
+                    if (panel.hidden) break;
+                    event.preventDefault();
+                    highlight(event.key === 'Home' ? 0 : options().length - 1);
+                    break;
+                case 'Enter':
+                case ' ':
+                    event.preventDefault();
+                    if (panel.hidden) open();
+                    else choose(active);
+                    break;
+                case 'Escape':
+                    if (panel.hidden) break;
+                    event.preventDefault();
+                    close();
+                    break;
+            }
+        });
+
+        panel.addEventListener('click', event => {
+            const row = event.target.closest('.select-option');
+            if (row) choose(Number(row.dataset.index));
+        });
+
+        document.addEventListener('pointerdown', event => {
+            if (panel.hidden || wrapper.contains(event.target) || panel.contains(event.target)) return;
+            close();
+        });
+
+        document.addEventListener(
+            'scroll',
+            event => {
+                if (!panel.contains(event.target)) close();
+            },
+            true
+        );
+
+        window.addEventListener('resize', close);
+
+        // Clicking the row title should open the list, not poke the hidden native select
+        if (label) {
+            label.addEventListener('click', event => {
+                if (wrapper.contains(event.target) || event.target.closest('a, input, button')) return;
+
+                event.preventDefault();
+                open();
+            });
+        }
+
+        const api = { open, close, refresh: sync };
+        sync();
+
+        return api;
+    }
+
+    const dohSelect = enhanceSelect(dohProviderSelect);
+    enhanceSelect(document.querySelector('select[name="discordBranch"]'));
+
+    /* ---------------------------------------------------------------- */
+
     fetch(remoteResolversUrl)
-        .then(response => response.ok ? response.json() : Promise.reject())
+        .then(response => (response.ok ? response.json() : Promise.reject()))
         .then(value => {
             if (!Array.isArray(value)) return;
 
-            const resolvers = value.filter(resolver =>
-                resolver &&
-                typeof resolver.label === 'string' &&
-                typeof resolver.url === 'string' &&
-                resolver.label.trim() &&
-                resolver.url.startsWith('https://')
-            );
+            const resolvers = value
+                .map(resolver => ({
+                    label: resolver?.label,
+                    url: normalizeDohUrl(resolver?.url),
+                    description: resolver?.description
+                }))
+                .filter(resolver => typeof resolver.label === 'string' && resolver.label.trim() && resolver.url);
             if (!resolvers.length) return;
 
+            resolverDescriptions = {
+                ...resolverDescriptions,
+                ...Object.fromEntries(resolvers.map(r => [r.url, r.description]))
+            };
+
+            const previous = dohProviderSelect.value;
             dohProviderSelect.replaceChildren(
                 new Option('Off (Disabled)', 'off'),
-                ...resolvers.map(resolver => new Option(resolver.label, resolver.url)),
+                ...resolvers.map(resolver => {
+                    const option = new Option(resolver.label, resolver.url);
+                    option.dataset.description = resolver.description ?? '';
+                    return option;
+                }),
                 new Option('Custom', 'custom')
             );
+
+            // Keep what the user picked; fall back to Off if it is gone from the list
+            dohProviderSelect.value = previous;
+            if (dohProviderSelect.value !== previous) dohProviderSelect.value = 'off';
+
+            dohSelect.refresh();
+            updateDohRow();
         })
         .catch(() => { });
 
-    dohProviderSelect.addEventListener('change', (e) => {
-        dohUrlLabel.style.display = e.target.value === 'custom' ? 'flex' : 'none';
-        if (e.target.value !== 'custom') {
+    function getDohHint() {
+        const provider = dohProviderSelect.value;
+
+        if (provider === 'custom') return defaultHint;
+        if (provider === 'off') return 'Lookups can be read or blocked by your network';
+        return resolverDescriptions[provider] || 'Encrypted DNS lookups';
+    }
+
+    function updateDohRow() {
+        const isCustom = dohProviderSelect.value === 'custom';
+        dohUrlRow.style.display = isCustom ? 'flex' : 'none';
+
+        if (!isCustom) {
             dohUrlInput.value = '';
+            dohUrlRow.classList.remove('error');
         }
-    });
 
-    cancel.onclick = () => console.info("cancel");
+        dohUrlHint.textContent = isCustom ? defaultHint : getDohHint();
+        dohSelect.refresh();
+    }
 
-    submit.onclick = e => {
-        const form = document.querySelector("form");
-        const formData = new FormData(form);
-        const data = Object.fromEntries(formData.entries());
+    dohProviderSelect.addEventListener('change', updateDohRow);
+    dohUrlInput.addEventListener('input', () => dohUrlRow.classList.remove('error'));
 
+    updateDohRow();
+
+    document.getElementById('cancel').onclick = () => console.info('cancel');
+
+    form.addEventListener('submit', event => {
+        event.preventDefault();
+
+        const data = Object.fromEntries(new FormData(form).entries());
         const provider = data.dohProvider;
+
         if (provider === 'off') {
-            data.enableDoh = undefined;
-            data.dohUrl = undefined;
+            delete data.enableDoh;
+            delete data.dohUrl;
         } else if (provider === 'custom') {
+            const url = normalizeDohUrl(data.dohUrl);
+            if (!url) {
+                dohUrlRow.classList.add('error');
+                dohUrlHint.textContent = 'Enter a valid https:// URL, for example https://example.com/dns-query';
+                dohUrlInput.focus();
+                return;
+            }
+
             data.enableDoh = 'on';
+            data.dohUrl = url;
         } else {
             data.enableDoh = 'on';
             data.dohUrl = provider;
@@ -288,7 +809,6 @@
 
         delete data.dohProvider;
 
-        console.info("form:" + JSON.stringify(data));
-        e.preventDefault();
-    };
+        console.info('form:' + JSON.stringify(data));
+    });
 </script>

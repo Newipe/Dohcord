@@ -11,6 +11,7 @@ import "./userAssets";
 import "./vesktopProtocol";
 
 import { app, BrowserWindow, nativeTheme } from "electron";
+import { normalizeDohUrl } from "shared/doh";
 
 import { DATA_DIR } from "./constants";
 import { createFirstLaunchTour } from "./firstLaunch";
@@ -29,6 +30,15 @@ process.env.VENCORD_USER_DATA_DIR = DATA_DIR;
 const isLinux = process.platform === "linux";
 
 export let enableHardwareAcceleration = true;
+
+/** Subset of Electron's ConfigureHostResolverOptions that we manage */
+interface HostResolverConfig {
+    secureDnsMode: "off" | "automatic" | "secure";
+    secureDnsServers?: string[];
+}
+
+/** Signature of the host resolver configuration currently applied to Chromium */
+let appliedDohConfig: string | undefined;
 
 function init() {
     setAsDefaultProtocolClient("discord");
@@ -161,17 +171,38 @@ Settings.addChangeListener("webRTCIPHandlingPolicy", () => {
 function applyDohSettings() {
     if (!app.isReady()) return;
 
-    if (Settings.store.enableDoh && Settings.store.dohUrl) {
-        app.configureHostResolver({
-            secureDnsMode: "secure",
-            secureDnsServers: [Settings.store.dohUrl]
-        });
-    } else {
-        app.configureHostResolver({
-            secureDnsMode: "automatic"
-        });
+    const { enableDoh, dohUrl, dohAllowFallback } = Settings.store;
+    const url = enableDoh ? normalizeDohUrl(dohUrl) : undefined;
+
+    if (enableDoh && !url) {
+        console.warn("[DoH] Ignoring unusable resolver URL:", dohUrl);
+    }
+
+    // Without a usable resolver we leave Chromium on its default: DoH when the
+    // system resolver supports it, plain DNS otherwise.
+    const config: HostResolverConfig = url
+        ? {
+              secureDnsMode: dohAllowFallback ? "automatic" : "secure",
+              secureDnsServers: [url]
+          }
+        : { secureDnsMode: "automatic" };
+
+    // Configuring the host resolver resets Chromium's host cache, and `enableDoh`
+    // and `dohUrl` change together whenever the user enables DoH, so only apply
+    // the configuration when it actually differs from the active one.
+    const signature = JSON.stringify(config);
+    if (signature === appliedDohConfig) return;
+
+    appliedDohConfig = signature;
+    app.configureHostResolver(config);
+
+    if (url) {
+        console.log(`[DoH] Encrypting DNS via ${url} (secureDnsMode: ${config.secureDnsMode})`);
+    } else if (enableDoh) {
+        console.warn("[DoH] No usable resolver configured, using system DNS");
     }
 }
 
 Settings.addChangeListener("enableDoh", applyDohSettings);
 Settings.addChangeListener("dohUrl", applyDohSettings);
+Settings.addChangeListener("dohAllowFallback", applyDohSettings);

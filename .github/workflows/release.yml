@@ -10,6 +10,12 @@ jobs:
     release:
         runs-on: ${{ matrix.os }}
 
+        # The default GITHUB_TOKEN is read-only, which makes electron-builder fail with
+        # "Resource not accessible by integration" while creating the GitHub release.
+        # Writing releases needs contents: write.
+        permissions:
+            contents: write
+
         strategy:
             matrix:
                 os: [macos-latest, ubuntu-latest, windows-latest]

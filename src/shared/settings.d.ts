@@ -40,8 +40,12 @@ export interface Settings {
 
     spellCheckLanguages?: string[];
 
-    enableDoh?: boolean;
+    /** Whether DoH is enabled. See {@link dohUrl} and {@link dohAllowFallback} */
+    enableDoh: boolean;
+    /** The RFC 8484 resolver template to use, e.g. https://cloudflare-dns.com/dns-query */
     dohUrl?: string | undefined;
+    /** Whether plain DNS may be used when the DoH server cannot be reached */
+    dohAllowFallback: boolean;
 
     audio?: {
         workaround?: boolean;

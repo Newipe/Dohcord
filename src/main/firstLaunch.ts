@@ -9,6 +9,7 @@ import { BrowserWindow } from "electron/main";
 import { copyFileSync, mkdirSync, readdirSync } from "fs";
 import { join } from "path";
 import { SplashProps } from "shared/browserWinProperties";
+import { normalizeDohUrl } from "shared/doh";
 
 import { autoStart } from "./autoStart";
 import { DATA_DIR } from "./constants";
@@ -33,8 +34,8 @@ export function createFirstLaunchTour() {
         transparent: false,
         frame: true,
         autoHideMenuBar: true,
-        height: 550,
-        width: 600
+        height: 620,
+        width: 620
     });
 
     makeLinksOpenExternally(win);
@@ -53,7 +54,9 @@ export function createFirstLaunchTour() {
 
         if (data.enableDoh === "on") {
             Settings.store.enableDoh = true;
-            Settings.store.dohUrl = data.dohUrl && data.dohUrl.trim() !== "" ? data.dohUrl.trim() : undefined;
+            // Unusable URLs are dropped rather than applied, the setup window
+            // validates custom ones but the remote provider list is not trusted
+            Settings.store.dohUrl = normalizeDohUrl(data.dohUrl);
         } else {
             Settings.store.enableDoh = false;
             Settings.store.dohUrl = undefined;

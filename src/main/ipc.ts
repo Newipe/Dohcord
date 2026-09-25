@@ -14,6 +14,7 @@ import {
     dialog,
     IpcMainInvokeEvent,
     nativeImage,
+    net,
     RelaunchOptions,
     session,
     shell
@@ -23,6 +24,7 @@ import { readFile, stat } from "fs/promises";
 import { release } from "os";
 import { join } from "path";
 
+import type { DohTestResult } from "../shared/doh";
 import { IpcEvents } from "../shared/IpcEvents";
 import { setBadgeCount } from "./appBadge";
 import { autoStart } from "./autoStart";
@@ -157,6 +159,28 @@ handle(IpcEvents.SELECT_VENCORD_DIR, async (_e, value?: null) => {
 });
 
 handle(IpcEvents.SET_BADGE_COUNT, (_, count: number) => setBadgeCount(count));
+
+// Resolves a hostname through Chromium's own resolver, which is exactly the path
+// Dohcord network traffic takes. Bypassing the host cache makes sure the result
+// reflects the currently configured DoH server and not a previous lookup.
+handle(IpcEvents.DOH_RESOLVE_HOST, async (): Promise<DohTestResult> => {
+    const start = performance.now();
+
+    try {
+        const { endpoints } = await net.resolveHost("discord.com", {
+            source: "dns",
+            cacheUsage: "disallowed",
+            secureDnsPolicy: "allow"
+        });
+
+        const addresses = endpoints.map(endpoint => endpoint.address).filter(Boolean);
+        if (!addresses.length) return { ok: false, error: "The resolver returned no addresses" };
+
+        return { ok: true, addresses, tookMs: Math.round(performance.now() - start) };
+    } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
+});
 
 handle(IpcEvents.FLASH_FRAME, (_, flag: boolean) => {
     if (!mainWin || mainWin.isDestroyed() || (flag && mainWin.isFocused())) return;
