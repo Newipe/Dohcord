@@ -11,18 +11,20 @@ import "./rpc";
 import "./userAssets";
 import "./vesktopProtocol";
 import { app, BrowserWindow, nativeTheme } from "electron";
+import { normalizeDohUrl } from "shared/doh";
 
 import { DATA_DIR } from "./constants";
 import { createFirstLaunchTour } from "./firstLaunch";
 import { createWindows, mainWin, openDeepLink } from "./mainWindow";
 import { registerMediaPermissionsHandler } from "./mediaPermissions";
+import { initRtcRelay, refreshRtcRelay } from "./rtcRelay";
 import { registerScreenShareHandler } from "./screenShare";
 import { Settings, State } from "./settings";
 import { setAsDefaultProtocolClient } from "./utils/setAsDefaultProtocolClient";
 import { showWindow } from "./utils/showWindow";
 import { isDeckGameMode } from "./utils/steamOS";
 
-console.log("Vesktop v" + app.getVersion());
+console.log("Dohcord v" + app.getVersion());
 
 // Make the Vencord files use our DATA_DIR
 process.env.VENCORD_USER_DATA_DIR = DATA_DIR;
@@ -30,6 +32,15 @@ process.env.VENCORD_USER_DATA_DIR = DATA_DIR;
 const isLinux = process.platform === "linux";
 
 export let enableHardwareAcceleration = true;
+
+/** Subset of Electron's ConfigureHostResolverOptions that we manage */
+interface HostResolverConfig {
+    secureDnsMode: "off" | "automatic" | "secure";
+    secureDnsServers?: string[];
+}
+
+/** Signature of the host resolver configuration currently applied to Chromium */
+let appliedDohConfig: string | undefined;
 
 function init() {
     setAsDefaultProtocolClient("discord");
@@ -107,10 +118,13 @@ function init() {
     });
 
     app.whenReady().then(async () => {
-        if (process.platform === "win32") app.setAppUserModelId("dev.vencord.vesktop");
+        if (process.platform === "win32") app.setAppUserModelId("dev.newipe.dohcord");
 
         registerScreenShareHandler();
         registerMediaPermissionsHandler();
+
+        applyDohSettings();
+        initRtcRelay();
 
         bootstrap();
 
@@ -122,10 +136,10 @@ function init() {
 
 if (!app.requestSingleInstanceLock({ IS_DEV })) {
     if (IS_DEV) {
-        console.log("Vesktop is already running. Quitting previous instance...");
+        console.log("Dohcord is already running. Quitting previous instance...");
         init();
     } else {
-        console.log("Vesktop is already running. Quitting...");
+        console.log("Dohcord is already running. Quitting...");
         app.quit();
     }
 } else {
@@ -166,3 +180,46 @@ Settings.addChangeListener("webRTCIPHandlingPolicy", () => {
         win.webContents.setWebRTCIPHandlingPolicy(Settings.store.webRTCIPHandlingPolicy ?? "default");
     }
 });
+
+function applyDohSettings() {
+    if (!app.isReady()) return;
+
+    const { enableDoh, dohUrl, dohAllowFallback } = Settings.store;
+    const url = enableDoh ? normalizeDohUrl(dohUrl) : undefined;
+
+    if (enableDoh && !url) {
+        console.warn("[DoH] Ignoring unusable resolver URL:", dohUrl);
+    }
+
+    // Without a usable resolver we leave Chromium on its default: DoH when the
+    // system resolver supports it, plain DNS otherwise.
+    const config: HostResolverConfig = url
+        ? {
+              secureDnsMode: dohAllowFallback ? "automatic" : "secure",
+              secureDnsServers: [url]
+          }
+        : { secureDnsMode: "automatic" };
+
+    // Configuring the host resolver resets Chromium's host cache, and `enableDoh`
+    // and `dohUrl` change together whenever the user enables DoH, so only apply
+    // the configuration when it actually differs from the active one.
+    const signature = JSON.stringify(config);
+    if (signature === appliedDohConfig) return;
+
+    appliedDohConfig = signature;
+    app.configureHostResolver(config);
+
+    if (url) {
+        console.log(`[DoH] Encrypting DNS via ${url} (secureDnsMode: ${config.secureDnsMode})`);
+    } else if (enableDoh) {
+        console.warn("[DoH] No usable resolver configured, using system DNS");
+    }
+}
+
+Settings.addChangeListener("enableDoh", applyDohSettings);
+Settings.addChangeListener("dohUrl", applyDohSettings);
+Settings.addChangeListener("dohAllowFallback", applyDohSettings);
+
+// Selecting Newipe turns the relay on, selecting anything else turns it off
+Settings.addChangeListener("enableDoh", () => void refreshRtcRelay());
+Settings.addChangeListener("dohUrl", () => void refreshRtcRelay());

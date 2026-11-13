@@ -84,7 +84,7 @@ export async function initTray(win: BrowserWindow, setIsQuitting: (val: boolean)
             }
         },
         {
-            label: "Reset Vesktop",
+            label: "Reset Dohcord",
             async click() {
                 await clearData(win);
             }
@@ -109,7 +109,7 @@ export async function initTray(win: BrowserWindow, setIsQuitting: (val: boolean)
     if (Settings.store.tray === false) return;
 
     tray = new Tray(await resolveAssetPath(trayVariant));
-    tray.setToolTip("Vesktop");
+    tray.setToolTip("Dohcord");
     tray.setContextMenu(trayMenu);
     tray.on("click", onTrayClick);
 }

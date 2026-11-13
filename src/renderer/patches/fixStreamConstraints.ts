@@ -7,7 +7,7 @@
 import { Logger } from "@vencord/types/utils";
 import { MediaEngineStore } from "@vencord/types/webpack/common";
 
-const logger = new Logger("VesktopStreamFixes");
+const logger = new Logger("DohcordStreamFixes");
 
 function fixAudioTrackConstraints(constraint: MediaTrackConstraints) {
     const target = constraint.advanced?.find(opt => Object.hasOwn(opt, "autoGainControl")) ?? constraint;

@@ -12,7 +12,7 @@ import { isLinux } from "renderer/utils";
 
 import { addPatch } from "./shared";
 
-const logger = new Logger("VesktopStreamFixes");
+const logger = new Logger("DohcordStreamFixes");
 
 const PRESET_CUSTOM = 3;
 

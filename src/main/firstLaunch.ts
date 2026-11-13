@@ -10,6 +10,7 @@ import { join } from "path";
 import { app } from "electron";
 import { BrowserWindow } from "electron/main";
 import { SplashProps } from "shared/browserWinProperties";
+import { normalizeDohUrl } from "shared/doh";
 
 import { autoStart } from "./autoStart";
 import { DATA_DIR } from "./constants";
@@ -24,6 +25,8 @@ interface Data {
     autoStart?: "on";
     importSettings?: "on";
     richPresence?: "on";
+    enableDoh?: "on";
+    dohUrl?: string;
 }
 
 export function createFirstLaunchTour() {
@@ -32,8 +35,8 @@ export function createFirstLaunchTour() {
         transparent: false,
         frame: true,
         autoHideMenuBar: true,
-        height: 550,
-        width: 600
+        height: 620,
+        width: 620
     });
 
     makeLinksOpenExternally(win);
@@ -49,6 +52,16 @@ export function createFirstLaunchTour() {
         Settings.store.discordBranch = data.discordBranch;
         Settings.store.minimizeToTray = !!data.minimizeToTray;
         Settings.store.arRPC = !!data.richPresence;
+
+        if (data.enableDoh === "on") {
+            Settings.store.enableDoh = true;
+            // Unusable URLs are dropped rather than applied, the setup window
+            // validates custom ones but the remote provider list is not trusted
+            Settings.store.dohUrl = normalizeDohUrl(data.dohUrl);
+        } else {
+            Settings.store.enableDoh = false;
+            Settings.store.dohUrl = undefined;
+        }
 
         if (data.autoStart) autoStart.enable();
 

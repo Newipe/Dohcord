@@ -52,7 +52,7 @@ function openUpdater(update: UpdateInfo) {
     }
 
     updaterWindow = new BrowserWindow({
-        title: "Vesktop Updater",
+        title: "Dohcord Updater",
         autoHideMenuBar: true,
         webPreferences: {
             preload: join(__dirname, "updaterPreload.js")

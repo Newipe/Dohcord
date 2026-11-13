@@ -17,7 +17,7 @@ export const DeveloperOptionsButton: SettingsComponent = ({ settings }) => {
 
 function openDeveloperOptionsModal(settings: Settings) {
     openModal(props => (
-        <Modal {...props} size="lg" title="Vesktop Developer Options">
+        <Modal {...props} size="lg" title="Dohcord Developer Options">
             <Heading tag="h4">Vencord Location</Heading>
             <VencordLocationPicker settings={settings} />
 

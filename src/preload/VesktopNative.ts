@@ -9,6 +9,7 @@ import { ipcRenderer } from "electron/renderer";
 import type { IpcMessage, IpcResponse } from "main/ipcCommands";
 import type { Settings } from "shared/settings";
 
+import type { DohTestResult } from "../shared/doh";
 import { IpcEvents } from "../shared/IpcEvents";
 import { invoke, sendSync } from "./typedIpc";
 
@@ -58,6 +59,10 @@ export const VesktopNative = {
     settings: {
         get: () => sendSync<Settings>(IpcEvents.GET_SETTINGS),
         set: (settings: Settings, path?: string) => invoke<void>(IpcEvents.SET_SETTINGS, settings, path)
+    },
+    doh: {
+        /** Resolves a hostname through the currently configured DoH resolver */
+        resolveHost: () => invoke<DohTestResult>(IpcEvents.DOH_RESOLVE_HOST)
     },
     spellcheck: {
         getAvailableLanguages: () => sendSync<string[]>(IpcEvents.SPELLCHECK_GET_AVAILABLE_LANGUAGES),

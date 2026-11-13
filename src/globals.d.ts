@@ -5,6 +5,11 @@
  */
 
 declare global {
+    interface Window {
+        /** Main-world integration installed by the preload on Discord pages */
+        __dohcordRtcRelay?: import("shared/rtcRelay").DohcordRtcRelay;
+    }
+
     export var VesktopNative: typeof import("preload/VesktopNative").VesktopNative;
     export var Vesktop: typeof import("renderer/index");
     export var VesktopPatchGlobals: any;

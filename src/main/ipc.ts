@@ -11,8 +11,19 @@ import { readFile, stat } from "fs/promises";
 import { release } from "os";
 import { join } from "path";
 
-import { app, BrowserWindow, clipboard, ClipboardItem, dialog, IpcMainInvokeEvent, session, shell } from "electron";
+import {
+    app,
+    BrowserWindow,
+    clipboard,
+    ClipboardItem,
+    dialog,
+    IpcMainInvokeEvent,
+    net,
+    session,
+    shell
+} from "electron";
 
+import type { DohTestResult } from "../shared/doh";
 import { IpcEvents } from "../shared/IpcEvents";
 import { setBadgeCount } from "./appBadge";
 import { autoStart } from "./autoStart";
@@ -32,6 +43,10 @@ handleSync(IpcEvents.GET_VENCORD_PRELOAD_SCRIPT, () =>
 handleSync(IpcEvents.GET_VENCORD_RENDERER_SCRIPT, () =>
     readFileSync(join(VENCORD_FILES_DIR, "vencordDesktopRenderer.js"), "utf-8")
 );
+
+const RTC_RELAY_JS_PATH = join(__dirname, "rtcRelay.js");
+// Injected into Discord's main world by the preload, before its own scripts run
+handleSync(IpcEvents.GET_RTC_RELAY_SCRIPT, () => readFileSync(RTC_RELAY_JS_PATH, "utf-8"));
 
 const VESKTOP_RENDERER_JS_PATH = join(__dirname, "renderer.js");
 const VESKTOP_RENDERER_CSS_PATH = join(__dirname, "renderer.css");
@@ -135,6 +150,28 @@ handle(IpcEvents.SELECT_VENCORD_DIR, async (_e, value?: null) => {
 });
 
 handle(IpcEvents.SET_BADGE_COUNT, (_, count: number) => setBadgeCount(count));
+
+// Resolves a hostname through Chromium's own resolver, which is exactly the path
+// Dohcord network traffic takes. Bypassing the host cache makes sure the result
+// reflects the currently configured DoH server and not a previous lookup.
+handle(IpcEvents.DOH_RESOLVE_HOST, async (): Promise<DohTestResult> => {
+    const start = performance.now();
+
+    try {
+        const { endpoints } = await net.resolveHost("discord.com", {
+            source: "dns",
+            cacheUsage: "disallowed",
+            secureDnsPolicy: "allow"
+        });
+
+        const addresses = endpoints.map(endpoint => endpoint.address).filter(Boolean);
+        if (!addresses.length) return { ok: false, error: "The resolver returned no addresses" };
+
+        return { ok: true, addresses, tookMs: Math.round(performance.now() - start) };
+    } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
+});
 
 handle(IpcEvents.FLASH_FRAME, (_, flag: boolean) => {
     if (!mainWin || mainWin.isDestroyed() || (flag && mainWin.isFocused())) return;

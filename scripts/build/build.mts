@@ -104,6 +104,14 @@ await Promise.all([
         footer: { js: "//# sourceURL=VesktopPreload" }
     }),
     createContext({
+        ...CommonOpts,
+        target: ["esnext"],
+        format: "iife",
+        entryPoints: ["src/preload/rtcRelay.ts"],
+        outfile: "dist/js/rtcRelay.js",
+        footer: { js: "//# sourceURL=DohcordRtcRelay" }
+    }),
+    createContext({
         ...NodeCommonOpts,
         entryPoints: ["src/preload/splash.ts"],
         outfile: "dist/js/splashPreload.js",
