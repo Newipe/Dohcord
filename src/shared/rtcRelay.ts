@@ -72,6 +72,23 @@ export const RTC_RELAY_STATUS_EVENT = "dohcord-rtc-relay-status";
 /** Cached credentials are refreshed this long before they expiry */
 export const RTC_RELAY_EXPIRY_MARGIN_MS = 60_000;
 
+/**
+ * Whether the URL Electron reports for a credential response is acceptable.
+ *
+ * The main process net.fetch does not reliably populate Response.url (Electron
+ * documents the .type and .url values as incorrect), so an absent or empty value
+ * must be accepted. When a URL is reported, only HTTPS is acceptable.
+ */
+export function isAcceptableCredentialResponseUrl(value: unknown): boolean {
+    if (typeof value !== "string" || !value) return true;
+
+    try {
+        return new URL(value).protocol === "https:";
+    } catch {
+        return true;
+    }
+}
+
 const MAX_ICE_SERVERS = 16;
 const MAX_ICE_URLS = 8;
 const MAX_FIELD_LENGTH = 512;

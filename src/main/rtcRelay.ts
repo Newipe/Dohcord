@@ -15,6 +15,7 @@ import {
 } from "shared/doh";
 import { IpcEvents } from "shared/IpcEvents";
 import {
+    isAcceptableCredentialResponseUrl,
     normalizeRtcRelayConfig,
     parseRtcRelayCredentials,
     type RtcRelayConfig,
@@ -209,6 +210,7 @@ async function loadResolverList() {
 async function fetchCredentials(credentialsUrl: string): Promise<RtcRelayCredentials> {
     const response = await net.fetch(credentialsUrl, {
         method: "GET",
+        redirect: "error",
         cache: "no-store",
         headers: { Accept: "application/json" },
         signal: AbortSignal.timeout(CREDENTIALS_TIMEOUT_MS)
@@ -216,15 +218,11 @@ async function fetchCredentials(credentialsUrl: string): Promise<RtcRelayCredent
 
     if (!response.ok) throw new Error(`the credential endpoint returned HTTP ${response.status}`);
 
-    // Certificate verification is Chromium's normal one. Refuse a redirect that
-    // would take the request off TLS.
-    let finalUrl: URL;
-    try {
-        finalUrl = new URL(response.url);
-    } catch {
-        throw new Error("the credential endpoint returned an invalid response URL");
+    // Certificate verification is Chromium's normal one. Redirects are refused
+    // outright above; Response.url is only checked when Electron reports one.
+    if (!isAcceptableCredentialResponseUrl(response.url)) {
+        throw new Error("the credential endpoint redirected off HTTPS");
     }
-    if (finalUrl.protocol !== "https:") throw new Error("the credential endpoint redirected off HTTPS");
 
     let json: unknown;
     try {
