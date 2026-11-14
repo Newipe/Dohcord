@@ -601,7 +601,7 @@ function takePrimed(id: string): ProfileNetworkConfig | undefined {
         return;
     }
 
-    const config = primed.config;
+    const { config } = primed;
     primed = undefined;
 
     return config;

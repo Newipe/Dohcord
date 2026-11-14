@@ -125,8 +125,12 @@ export function normalizeProfileName(value: unknown): string | undefined {
 
     const name = value.trim().replace(/\s+/g, " ");
     if (!name || name.length > MAX_PROFILE_NAME_LENGTH) return;
+
     // Control characters would make the settings list unreadable
-    if (/[\u0000-\u001f\u007f]/.test(name)) return;
+    for (const character of name) {
+        const codePoint = character.codePointAt(0)!;
+        if (codePoint < 0x20 || codePoint === 0x7f) return;
+    }
 
     return name;
 }
