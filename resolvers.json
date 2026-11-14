@@ -12,11 +12,7 @@
     {
         "label": "Newipe (newipe.qd.je)",
         "url": "https://newipe.qd.je/dns-query",
-        "description": "Routes Discord through an SNI proxy. Recommended in Iran, may not work elsewhere.",
-        "rtcRelay": {
-            "enabled": true,
-            "credentialsUrl": "https://13.48.52.216/turn-credentials"
-        }
+        "description": "Routes Discord through an SNI proxy. Recommended in Iran, may not work elsewhere."
     },
     {
         "label": "VanillaApp (vanillapp.ir)",

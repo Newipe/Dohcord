@@ -278,6 +278,17 @@
             color: var(--fg-secondary);
         }
 
+        .profile-status {
+            margin: -0.3em 0 0;
+            min-height: 1.2em;
+            font-size: 0.82rem;
+            color: var(--fg-secondary);
+        }
+
+        .profile-status.error {
+            color: var(--danger);
+        }
+
         #dohUrlRow {
             display: none;
         }
@@ -361,18 +372,6 @@
     <form novalidate>
         <label>
             <div>
-                <h2>Discord Branch</h2>
-                <span>The release channel to launch</span>
-            </div>
-            <select name="discordBranch">
-                <option value="stable">Stable</option>
-                <option value="canary">Canary</option>
-                <option value="ptb">PTB</option>
-            </select>
-        </label>
-
-        <label>
-            <div>
                 <h2>Start with System</h2>
                 <span>Automatically open Dohcord when your computer starts</span>
             </div>
@@ -402,6 +401,20 @@
             </div>
             <input type="checkbox" name="minimizeToTray" checked />
         </label>
+
+        <p class="section-label">Profiles</p>
+
+        <label>
+            <div>
+                <h2>Connection Profile</h2>
+                <span>Choose how Discord connects</span>
+            </div>
+            <select name="profileId" id="profileSelect">
+                <option value="direct">No Profile — Direct Connection</option>
+            </select>
+        </label>
+
+        <p class="profile-status" id="profileStatus" role="status"></p>
 
         <p class="section-label">DNS over HTTPS</p>
 
@@ -470,6 +483,9 @@
 
 <script>
     const form = document.querySelector("form");
+    const profileSelectElement = document.getElementById("profileSelect");
+    const profileStatus = document.getElementById("profileStatus");
+    const submitButton = document.getElementById("submit");
     const dohProviderSelect = document.getElementById("dohProviderSelect");
     const dohUrlRow = document.getElementById("dohUrlRow");
     const dohUrlInput = document.querySelector('input[name="dohUrl"]');
@@ -733,7 +749,71 @@
     }
 
     const dohSelect = enhanceSelect(dohProviderSelect);
-    enhanceSelect(document.querySelector('select[name="discordBranch"]'));
+    const profileSelect = enhanceSelect(profileSelectElement);
+
+    /* ---------------------------------------------------------------- */
+    /* Profiles are provided by the main process                          */
+    /* ---------------------------------------------------------------- */
+
+    function setProfileStatus(text, isError) {
+        profileStatus.textContent = text || "";
+        profileStatus.classList.toggle("error", !!isError);
+    }
+
+    function updateProfileHint() {
+        const selected = profileSelectElement.selectedOptions[0];
+
+        if (profileSelectElement.value === "direct" || !selected) {
+            setProfileStatus("");
+            return;
+        }
+
+        setProfileStatus(
+            selected.dataset.description ||
+                "The profile's network configuration is retrieved and validated before setup finishes."
+        );
+    }
+
+    // Called by the main process with the packaged and custom profiles
+    window.__dohcordProfiles = profiles => {
+        if (!Array.isArray(profiles)) return;
+
+        const previous = profileSelectElement.value;
+
+        profileSelectElement.replaceChildren(
+            new Option("No Profile — Direct Connection", "direct"),
+            ...profiles
+                .filter(profile => profile && typeof profile.id === "string" && typeof profile.name === "string")
+                .map(profile => {
+                    const option = new Option(profile.name, profile.id);
+                    if (profile.description) option.dataset.description = profile.description;
+                    return option;
+                })
+        );
+
+        // Keep what the user picked; fall back to Direct Connection if it is gone
+        profileSelectElement.value = previous;
+        if (profileSelectElement.value !== previous) profileSelectElement.value = "direct";
+
+        profileSelect.refresh();
+        updateProfileHint();
+    };
+
+    window.__dohcordProfileState = text => {
+        setProfileStatus(text);
+        submitButton.disabled = true;
+        submitButton.textContent = "Connecting…";
+    };
+
+    window.__dohcordProfileError = message => {
+        setProfileStatus(message, true);
+        submitButton.disabled = false;
+        submitButton.textContent = "Get Started";
+    };
+
+    profileSelectElement.addEventListener("change", updateProfileHint);
+
+    console.info("profiles:init");
 
     /* ---------------------------------------------------------------- */
 
@@ -830,6 +910,14 @@
         }
 
         delete data.dohProvider;
+
+        setProfileStatus("");
+
+        if (data.profileId && data.profileId !== "direct") {
+            submitButton.disabled = true;
+            submitButton.textContent = "Connecting…";
+            setProfileStatus("Retrieving the profile configuration…");
+        }
 
         console.info("form:" + JSON.stringify(data));
     });

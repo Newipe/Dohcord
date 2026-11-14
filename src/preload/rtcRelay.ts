@@ -527,10 +527,10 @@ const MAX_ICE_SERVERS = 16;
         const previousServers = JSON.stringify(snapshot.iceServers ?? null);
         snapshot = sanitizeSnapshot(next);
 
-        // Switching to another DNS provider restores Discord's own RTC behaviour
+        // Switching to another profile restores Discord's own RTC behaviour
         if (!snapshot.enabled) {
             for (const entry of [...connections]) {
-                if (entry.relay) restoreDirect(entry, "Relay is not enabled for the selected DNS provider");
+                if (entry.relay) restoreDirect(entry, "Relay is not enabled for the selected connection profile");
             }
 
             retryAfter = 0;

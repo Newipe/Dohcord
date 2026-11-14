@@ -25,10 +25,19 @@ import {
 
 import type { DohTestResult } from "../shared/doh";
 import { IpcEvents } from "../shared/IpcEvents";
+import type { ProfileSaveResult, ProfilesSnapshot, ProfileStatus } from "../shared/profiles";
 import { setBadgeCount } from "./appBadge";
 import { autoStart } from "./autoStart";
 import { enableHardwareAcceleration } from "./main";
 import { mainWin } from "./mainWindow";
+import {
+    applySelectedProfile,
+    deleteCustomProfile,
+    getProfilesSnapshot,
+    getProfileStatus,
+    saveCustomProfile
+} from "./profiles";
+import { getRtcRelaySnapshot } from "./rtcRelay";
 import { Settings, State } from "./settings";
 import { handle, handleSync } from "./utils/ipcWrappers";
 import { PopoutWindows } from "./utils/popout";
@@ -47,6 +56,13 @@ handleSync(IpcEvents.GET_VENCORD_RENDERER_SCRIPT, () =>
 const RTC_RELAY_JS_PATH = join(__dirname, "rtcRelay.js");
 // Injected into Discord's main world by the preload, before its own scripts run
 handleSync(IpcEvents.GET_RTC_RELAY_SCRIPT, () => readFileSync(RTC_RELAY_JS_PATH, "utf-8"));
+handleSync(IpcEvents.RTC_RELAY_SNAPSHOT, () => getRtcRelaySnapshot());
+
+handleSync(IpcEvents.PROFILES_LIST, (): ProfilesSnapshot => getProfilesSnapshot());
+handleSync(IpcEvents.PROFILES_STATUS, (): ProfileStatus => getProfileStatus());
+handle(IpcEvents.PROFILES_SAVE, (_, input: unknown): Promise<ProfileSaveResult> => saveCustomProfile(input));
+handle(IpcEvents.PROFILES_DELETE, (_, id: unknown): ProfileSaveResult => deleteCustomProfile(id));
+handle(IpcEvents.PROFILES_RETRY, () => applySelectedProfile());
 
 const VESKTOP_RENDERER_JS_PATH = join(__dirname, "renderer.js");
 const VESKTOP_RENDERER_CSS_PATH = join(__dirname, "renderer.css");

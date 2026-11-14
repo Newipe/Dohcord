@@ -33,5 +33,6 @@ export const DefaultVesktopSettings: Settings = {
     transparencyOption: "none",
     enableDoh: false,
     dohUrl: undefined,
-    dohAllowFallback: false
+    dohAllowFallback: false,
+    profileId: undefined
 };

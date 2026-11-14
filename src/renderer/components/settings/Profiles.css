@@ -1,0 +1,121 @@
+.vcd-profiles-card {
+    display: flex;
+    flex-direction: column;
+    gap: 1em;
+}
+
+.vcd-profiles-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75em;
+}
+
+.vcd-profiles-pill {
+    flex-shrink: 0;
+    padding: 0.15em 0.6em;
+    border: 1px solid currentColor;
+    border-radius: 999px;
+    font-size: 0.7rem;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.vcd-profiles-pill-ok {
+    color: var(--text-positive, #23a55a);
+}
+
+.vcd-profiles-pill-warn {
+    color: var(--text-warning, #f0b232);
+}
+
+.vcd-profiles-pill-error {
+    color: var(--text-danger, #f23f43);
+}
+
+.vcd-profiles-pill-off {
+    color: var(--text-muted, #949ba4);
+}
+
+.vcd-profiles-hint {
+    color: var(--text-muted, #949ba4);
+}
+
+.vcd-profiles-error {
+    color: var(--text-danger, #f23f43);
+}
+
+.vcd-profiles-relay {
+    font-variant-numeric: tabular-nums;
+}
+
+.vcd-profiles-relay-ok {
+    color: var(--text-positive, #23a55a);
+}
+
+.vcd-profiles-relay-warn {
+    color: var(--text-warning, #f0b232);
+}
+
+.vcd-profiles-relay-error {
+    color: var(--text-danger, #f23f43);
+}
+
+.vcd-profiles-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5em;
+}
+
+.vcd-profiles-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75em;
+    flex-wrap: wrap;
+}
+
+.vcd-profiles-manage {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75em;
+}
+
+.vcd-profiles-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1em;
+    padding: 0.6em 0.75em;
+    border: 1px solid var(--background-modifier-accent, rgb(255 255 255 / 0.08));
+    border-radius: 8px;
+}
+
+.vcd-profiles-rowText {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15em;
+    min-width: 0;
+}
+
+.vcd-profiles-rowText > * {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.vcd-profiles-rowActions {
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+    flex-shrink: 0;
+}
+
+.vcd-profiles-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6em;
+    padding: 0.75em;
+    border: 1px solid var(--background-modifier-accent, rgb(255 255 255 / 0.08));
+    border-radius: 8px;
+}

@@ -4,15 +4,11 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import { normalizeRtcRelayConfig, type RtcRelayConfig } from "./rtcRelay";
-
 export interface DohResolver {
     label: string;
     url: string;
     /** Optional extra info about the provider, shown under it in the settings UI */
     description?: string;
-    /** Optional automatic WebRTC relay used while this resolver is selected */
-    rtcRelay?: RtcRelayConfig;
 }
 
 /** Sentinel value of the provider pickers for "no DoH" */
@@ -40,11 +36,7 @@ export const DEFAULT_DOH_RESOLVERS: DohResolver[] = [
     {
         label: "Newipe (newipe.qd.je)",
         url: "https://newipe.qd.je/dns-query",
-        description: "Routes Discord through an SNI proxy. Recommended in Iran, may not work elsewhere.",
-        rtcRelay: {
-            enabled: true,
-            credentialsUrl: "https://13.48.52.216/turn-credentials"
-        }
+        description: "Routes Discord through an SNI proxy. Recommended in Iran, may not work elsewhere."
     },
     {
         label: "VanillaApp (vanillapp.ir)",
@@ -130,9 +122,6 @@ export function parseDohResolvers(value: unknown): DohResolver[] | undefined {
 
         const resolver: DohResolver = { label: label.trim(), url };
         if (typeof description === "string" && description.trim()) resolver.description = description.trim();
-
-        const rtcRelay = normalizeRtcRelayConfig((entry as { rtcRelay?: unknown }).rtcRelay);
-        if (rtcRelay) resolver.rtcRelay = rtcRelay;
 
         resolvers.push(resolver);
     }

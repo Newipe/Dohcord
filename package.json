@@ -1,6 +1,6 @@
 {
     "name": "dohcord",
-    "version": "1.7.0",
+    "version": "1.7.1",
     "private": true,
     "description": "Dohcord is a custom Discord desktop app with native DNS over HTTPS",
     "keywords": [],
@@ -65,6 +65,7 @@
             "!node_modules",
             "dist/js",
             "static",
+            "profiles.json",
             "package.json",
             "LICENSE"
         ],

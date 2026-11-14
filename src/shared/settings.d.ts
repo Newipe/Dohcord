@@ -48,6 +48,12 @@ export interface Settings {
     /** Whether plain DNS may be used when the DoH server cannot be reached */
     dohAllowFallback: boolean;
 
+    /**
+     * The selected connection profile id, or undefined for a direct connection.
+     * Independent from the DoH settings above.
+     */
+    profileId?: string;
+
     audio?: {
         workaround?: boolean;
 

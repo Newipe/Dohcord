@@ -1,0 +1,9 @@
+[
+    {
+        "id": "newipe",
+        "name": "Newipe",
+        "description": "Enhanced Discord connectivity through secure proxy routing and RTC relay.",
+        "networkConfigUrl": "https://13.48.52.216:8443/network-config",
+        "type": "builtin"
+    }
+]

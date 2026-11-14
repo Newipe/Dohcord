@@ -4,13 +4,6 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-/** Automatic WebRTC relay attached to a resolver in resolvers.json */
-export interface RtcRelayConfig {
-    enabled: boolean;
-    /** HTTPS endpoint returning temporary TURN credentials */
-    credentialsUrl: string;
-}
-
 export interface RtcIceServer {
     urls: string | string[];
     username?: string;
@@ -26,7 +19,7 @@ export interface RtcRelayCredentials {
 /**
  * Handed from the main process to the Discord renderer. An empty object is never
  * valid; {@link RtcRelaySnapshot.enabled} always states whether the selected
- * provider asks for a relay.
+ * connection profile asks for a relay.
  */
 export interface RtcRelaySnapshot {
     enabled: boolean;
@@ -40,7 +33,7 @@ export type RtcRelayState = "unavailable" | "connecting" | "relayed" | "fallback
 
 /** Live state of the relay as observed on Discord's actual PeerConnections */
 export interface RtcRelayStatus {
-    /** The selected DNS provider carries an rtcRelay configuration */
+    /** The selected connection profile carries an RTC relay configuration */
     configured: boolean;
     state: RtcRelayState;
     reason?: string;
@@ -72,23 +65,6 @@ export const RTC_RELAY_STATUS_EVENT = "dohcord-rtc-relay-status";
 /** Cached credentials are refreshed this long before they expiry */
 export const RTC_RELAY_EXPIRY_MARGIN_MS = 60_000;
 
-/**
- * Whether the URL Electron reports for a credential response is acceptable.
- *
- * The main process net.fetch does not reliably populate Response.url (Electron
- * documents the .type and .url values as incorrect), so an absent or empty value
- * must be accepted. When a URL is reported, only HTTPS is acceptable.
- */
-export function isAcceptableCredentialResponseUrl(value: unknown): boolean {
-    if (typeof value !== "string" || !value) return true;
-
-    try {
-        return new URL(value).protocol === "https:";
-    } catch {
-        return true;
-    }
-}
-
 const MAX_ICE_SERVERS = 16;
 const MAX_ICE_URLS = 8;
 const MAX_FIELD_LENGTH = 512;
@@ -96,29 +72,6 @@ const MAX_FIELD_LENGTH = 512;
 const MIN_REMAINING_TTL_MS = 30_000;
 const ICE_URL = /^(?:stuns?|turns?):[^\s]+$/i;
 const TURN_URL = /^turns?:[^\s]+$/i;
-
-/**
- * Validates an untrusted rtcRelay block from resolvers.json. Only https credential
- * endpoints are accepted, and embedded credentials are rejected because the URL
- * ends up in request logs.
- */
-export function normalizeRtcRelayConfig(value: unknown): RtcRelayConfig | undefined {
-    if (typeof value !== "object" || value === null) return;
-
-    const { enabled, credentialsUrl } = value as Partial<RtcRelayConfig>;
-    if (enabled !== true || typeof credentialsUrl !== "string") return;
-
-    let url: URL;
-    try {
-        url = new URL(credentialsUrl.trim());
-    } catch {
-        return;
-    }
-
-    if (url.protocol !== "https:" || !url.hostname || url.username || url.password) return;
-
-    return { enabled: true, credentialsUrl: url.href };
-}
 
 export type RtcRelayCredentialsResult = ({ ok: true } & RtcRelayCredentials) | { ok: false; error: string };
 

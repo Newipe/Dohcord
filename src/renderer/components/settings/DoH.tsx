@@ -23,7 +23,6 @@ import {
     parseDohResolvers,
     REMOTE_DOH_RESOLVERS_URL
 } from "../../../shared/doh";
-import { RTC_RELAY_STATUS_EVENT, type RtcRelayStatus } from "../../../shared/rtcRelay";
 import { SimpleErrorBoundary } from "../SimpleErrorBoundary";
 import { SettingsComponent } from "./Settings";
 
@@ -156,8 +155,6 @@ export const DoH: SettingsComponent = ({ settings }) => {
                     {hint}
                 </Text>
 
-                <RtcRelayStatusLine />
-
                 <div className={cl("field")}>
                     <Text tag="span" size="sm" weight="medium" defaultColor={false}>
                         Provider
@@ -235,73 +232,6 @@ export const DoH: SettingsComponent = ({ settings }) => {
         </SimpleErrorBoundary>
     );
 };
-
-/**
- * Shows what Discord's real voice connections are doing with the relay. Only
- * rendered while the selected provider asks for a relay, so the other providers
- * stay exactly as they were.
- */
-function RtcRelayStatusLine() {
-    const [status, setStatus] = useState<RtcRelayStatus | undefined>(() => window.__dohcordRtcRelay?.getStatus());
-
-    useEffect(() => {
-        const onStatus = (event: Event) => setStatus((event as CustomEvent<RtcRelayStatus>).detail);
-
-        window.addEventListener(RTC_RELAY_STATUS_EVENT, onStatus);
-        setStatus(window.__dohcordRtcRelay?.getStatus());
-
-        return () => window.removeEventListener(RTC_RELAY_STATUS_EVENT, onStatus);
-    }, []);
-
-    if (!status?.configured) return null;
-
-    const { tone, text } = describeRtcRelay(status);
-
-    return (
-        <Text tag="span" size="sm" defaultColor={false} className={cl("relay", `relay-${tone}`)}>
-            {text}
-        </Text>
-    );
-}
-
-function describeRtcRelay(status: RtcRelayStatus): { tone: "ok" | "warn" | "error"; text: string } {
-    const host = status.relayHost ?? "the relay";
-
-    switch (status.state) {
-        case "relayed":
-            return {
-                tone: "ok",
-                text: `Voice relay: relayed via ${host} (${status.candidateType ?? "relay"} candidate, ${
-                    status.protocol ?? "udp"
-                }) · ${formatBytes(status.bytesSent)} up / ${formatBytes(status.bytesReceived)} down${
-                    status.rttMs !== undefined ? ` · ${status.rttMs} ms` : ""
-                }`
-            };
-        case "fallback":
-            return {
-                tone: "warn",
-                text: `Voice relay: direct fallback${status.reason ? ` — ${status.reason}` : ""}`
-            };
-        case "unavailable":
-            return {
-                tone: "error",
-                text: `Voice relay unavailable — ${status.reason ?? "no credentials"} · using direct RTC`
-            };
-        default:
-            return {
-                tone: "warn",
-                text: `Voice relay: connecting${status.reason ? ` — ${status.reason}` : "…"}`
-            };
-    }
-}
-
-function formatBytes(value: number | undefined): string {
-    if (!value) return "0 B";
-    if (value < 1024) return `${value} B`;
-    if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
-
-    return `${(value / (1024 * 1024)).toFixed(1)} MB`;
-}
 
 function getUrlError(value: string): string | undefined {
     if (!value.trim()) return "Enter the URL of your DoH server";

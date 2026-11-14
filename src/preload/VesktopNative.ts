@@ -11,6 +11,7 @@ import type { Settings } from "shared/settings";
 
 import type { DohTestResult } from "../shared/doh";
 import { IpcEvents } from "../shared/IpcEvents";
+import type { ProfileSaveResult, ProfilesSnapshot, ProfileStatus } from "../shared/profiles";
 import { invoke, sendSync } from "./typedIpc";
 
 type SpellCheckerResultCallback = (word: string, suggestions: string[]) => void;
@@ -63,6 +64,23 @@ export const VesktopNative = {
     doh: {
         /** Resolves a hostname through the currently configured DoH resolver */
         resolveHost: () => invoke<DohTestResult>(IpcEvents.DOH_RESOLVE_HOST)
+    },
+    profiles: {
+        /** Packaged and custom profiles, the selected id, and its current status */
+        list: () => sendSync<ProfilesSnapshot>(IpcEvents.PROFILES_LIST),
+        status: () => sendSync<ProfileStatus>(IpcEvents.PROFILES_STATUS),
+        /** Adds or edits a custom profile. Resolves only once its config is validated */
+        save: (profile: { id?: string; name: string; networkConfigUrl: string }) =>
+            invoke<ProfileSaveResult>(IpcEvents.PROFILES_SAVE, profile),
+        remove: (id: string) => invoke<ProfileSaveResult>(IpcEvents.PROFILES_DELETE, id),
+        /** Re-fetches the selected profile's configuration */
+        retry: () => invoke<void>(IpcEvents.PROFILES_RETRY),
+        onStatus(cb: (status: ProfileStatus) => void) {
+            const listener = (_event: unknown, status: ProfileStatus) => cb(status);
+            ipcRenderer.on(IpcEvents.PROFILES_STATUS_UPDATE, listener);
+
+            return () => ipcRenderer.removeListener(IpcEvents.PROFILES_STATUS_UPDATE, listener);
+        }
     },
     spellcheck: {
         getAvailableLanguages: () => sendSync<string[]>(IpcEvents.SPELLCHECK_GET_AVAILABLE_LANGUAGES),

@@ -17,7 +17,7 @@ import { DATA_DIR } from "./constants";
 import { createFirstLaunchTour } from "./firstLaunch";
 import { createWindows, mainWin, openDeepLink } from "./mainWindow";
 import { registerMediaPermissionsHandler } from "./mediaPermissions";
-import { initRtcRelay, refreshRtcRelay } from "./rtcRelay";
+import { applySelectedProfile, initProfiles } from "./profiles";
 import { registerScreenShareHandler } from "./screenShare";
 import { Settings, State } from "./settings";
 import { setAsDefaultProtocolClient } from "./utils/setAsDefaultProtocolClient";
@@ -124,7 +124,11 @@ function init() {
         registerMediaPermissionsHandler();
 
         applyDohSettings();
-        initRtcRelay();
+        initProfiles();
+
+        // A selected profile must install its proxy policy before Discord loads,
+        // so no approved destination is ever sent direct while it is set up
+        await applySelectedProfile();
 
         bootstrap();
 
@@ -219,7 +223,3 @@ function applyDohSettings() {
 Settings.addChangeListener("enableDoh", applyDohSettings);
 Settings.addChangeListener("dohUrl", applyDohSettings);
 Settings.addChangeListener("dohAllowFallback", applyDohSettings);
-
-// Selecting Newipe turns the relay on, selecting anything else turns it off
-Settings.addChangeListener("enableDoh", () => void refreshRtcRelay());
-Settings.addChangeListener("dohUrl", () => void refreshRtcRelay());
