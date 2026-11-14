@@ -29,6 +29,7 @@ import {
 } from "shared/profiles";
 
 import { DATA_DIR } from "./constants";
+import { publishPacScript, UNREACHABLE_PAC_URL } from "./pacServer";
 import { publishRtcRelaySnapshot } from "./rtcRelay";
 import { Settings } from "./settings";
 
@@ -203,6 +204,26 @@ async function runApply(id: string | undefined) {
 
     if (getSelectedProfileId() !== profile.id) return;
 
+    const policyProblem = await verifyPacDecision(ses, config);
+    if (getSelectedProfileId() !== profile.id) return;
+
+    if (policyProblem) {
+        setStatus({
+            profileId: profile.id,
+            profileName: profile.name,
+            proxyHost: config.httpsProxy.host,
+            state: "unavailable",
+            message: policyProblem
+        });
+        scheduleRetry();
+        return;
+    }
+
+    console.log(
+        `[Profiles] Applied ${profile.name}: HTTPS proxy ${config.httpsProxy.host}:${config.httpsProxy.port}, ` +
+            `${config.httpsProxy.allowedDestinations.length} allowed Discord destinations`
+    );
+
     // Temporary TURN credentials stay in memory and are never written to disk
     if (config.rtcRelay) {
         publishRtcRelaySnapshot({
@@ -251,17 +272,61 @@ async function runApply(id: string | undefined) {
 
 async function installPac(ses: Electron.Session, script: string) {
     const signature = `${script.length}:${script}`;
+    if (signature === appliedProxySignature) return;
 
-    if (signature !== appliedProxySignature) {
-        await ses.setProxy({ mode: "pac_script", pacScript: script });
-        appliedProxySignature = signature;
+    let pacUrl: string;
+
+    try {
+        // Electron's pacScript option is a URL, not the script itself
+        pacUrl = await publishPacScript(script);
+    } catch (err) {
+        console.error("[Profiles] Could not serve the PAC policy:", errorMessage(err));
+
+        // An unloadable PAC makes Chromium refuse connections instead of quietly
+        // sending approved Discord traffic direct
+        await ses.setProxy({ mode: "pac_script", pacScript: UNREACHABLE_PAC_URL });
+        appliedProxySignature = undefined;
         proxyInstalled = true;
         proxyVerified = false;
-
-        // New settings only affect new connections until Chromium is told to drop
-        // the old ones, so Discord reconnects with the new policy
         await ses.closeAllConnections();
+
+        throw new Error("The local proxy policy server could not start");
     }
+
+    await ses.setProxy({ mode: "pac_script", pacScript: pacUrl });
+    appliedProxySignature = signature;
+    proxyInstalled = true;
+    proxyVerified = false;
+
+    // New settings only affect new connections until Chromium is told to drop
+    // the old ones, so Discord reconnects with the new policy
+    await ses.closeAllConnections();
+}
+
+/**
+ * Confirms Chromium actually uses the local PAC script for an approved Discord
+ * destination. A PAC that Chromium never loaded resolves everything DIRECT, which
+ * would silently leak the very traffic the profile is meant to route.
+ */
+async function verifyPacDecision(ses: Electron.Session, config: ProfileNetworkConfig): Promise<string | undefined> {
+    const destination = config.httpsProxy.allowedDestinations[0];
+    if (!destination) return "The proxy policy allows no destinations";
+
+    const port = destination.ports[0] ?? destination.portRanges[0]?.from ?? 443;
+    const authority = port === 443 ? destination.domain : `${destination.domain}:${port}`;
+
+    let decision: string;
+    try {
+        decision = await ses.resolveProxy(`https://${authority}/`);
+    } catch (err) {
+        return `The proxy policy could not be evaluated: ${errorMessage(err)}`;
+    }
+
+    if (!/^HTTPS\s/i.test(decision.trim())) {
+        return `Chromium resolved ${destination.domain} to ${decision.trim() || "nothing"} instead of the profile proxy`;
+    }
+
+    return undefined;
 }
 
 async function resetProxy(ses: Electron.Session) {
