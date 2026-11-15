@@ -21,8 +21,9 @@
         "start": "pnpm build && electron --enable-source-maps .",
         "start:dev": "pnpm build:dev && electron --enable-source-maps .",
         "start:watch": "pnpm build:dev && tsx scripts/startWatch.mts",
-        "test": "pnpm lint && pnpm fmt:check && pnpm testTypes",
+        "test": "pnpm lint && pnpm fmt:check && pnpm testTypes && pnpm testUnit",
         "testTypes": "tsc --noEmit",
+        "testUnit": "tsx scripts/test/profiles.test.mts",
         "watch": "pnpm build --watch",
         "generateMeta": "tsx scripts/utils/generateMeta.mts"
     },

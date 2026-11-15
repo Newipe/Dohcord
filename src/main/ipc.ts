@@ -35,6 +35,7 @@ import {
     deleteCustomProfile,
     getProfilesSnapshot,
     getProfileStatus,
+    isProfileActive,
     saveCustomProfile
 } from "./profiles";
 import { getRtcRelaySnapshot } from "./rtcRelay";
@@ -92,6 +93,11 @@ handle(IpcEvents.ENABLE_AUTOSTART, autoStart.enable);
 handle(IpcEvents.DISABLE_AUTOSTART, autoStart.disable);
 
 handle(IpcEvents.SET_SETTINGS, (_, settings: typeof Settings.store, path?: string) => {
+    // A profile disables DoH; a renderer cannot bypass that by writing settings
+    if (settings.enableDoh && isProfileActive()) {
+        settings = { ...settings, enableDoh: false };
+    }
+
     Settings.setData(settings, path);
 });
 

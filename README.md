@@ -9,8 +9,8 @@
 Encrypt your DNS lookups, defeat DNS-level censorship, and stay connected on restricted networks.
 
 **Dohcord 1.7.1** adds optional [Connection Profiles](#connection-profiles): route approved Discord
-traffic through the built-in Newipe relay or your own compatible relay server, completely
-independently of DNS over HTTPS.
+traffic through the built-in Newipe relay or your own compatible relay server. A profile supplies
+its own routing policy, and DoH is disabled while one is active.
 
 [![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-5865F2?style=flat-square)](#installation)
 [![License](https://img.shields.io/badge/license-GPL--3.0--or--later-green?style=flat-square)](LICENSE)
@@ -62,16 +62,16 @@ longer be read or tampered with in transit, and DNS-based blocking stops working
 
 ## Features
 
-|     | Feature                 | Description                                                                             |
-| --- | ----------------------- | --------------------------------------------------------------------------------------- |
-| 🛡️  | **DNS over HTTPS**      | Encrypted lookups through any RFC 8484 resolver, with optional strict enforcement       |
-| 🌍  | **Custom DoH routing**  | Built-in provider list, plus your own URL — including SNI-proxy resolvers               |
-| 🔁  | **Fallback control**    | Choose between "encrypted or nothing" and falling back to plain DNS when needed         |
-| 🩺  | **Resolver test**       | Resolve a hostname from the settings panel to confirm the active resolver works         |
-| 🔀  | **Connection profiles** | Optional Newipe or self-hosted relay for Discord HTTPS/WSS and voice, separate from DoH |
-| 🧩  | **Vencord built in**    | The full plugin, theme and tweak ecosystem, ready out of the box                        |
-| 🐧  | **Linux first-class**   | Native Wayland, screen sharing with audio, and better performance                       |
-| ⚡  | **Lightweight**         | No bundled Discord bloat, no telemetry — a noticeably snappier experience               |
+|     | Feature                 | Description                                                                                |
+| --- | ----------------------- | ------------------------------------------------------------------------------------------ |
+| 🛡️  | **DNS over HTTPS**      | Encrypted lookups through any RFC 8484 resolver, with optional strict enforcement          |
+| 🌍  | **Custom DoH routing**  | Built-in provider list, plus your own URL — including SNI-proxy resolvers                  |
+| 🔁  | **Fallback control**    | Choose between "encrypted or nothing" and falling back to plain DNS when needed            |
+| 🩺  | **Resolver test**       | Resolve a hostname from the settings panel to confirm the active resolver works            |
+| 🔀  | **Connection profiles** | Optional Newipe or self-hosted relay for Discord HTTPS/WSS and voice; DoH off while active |
+| 🧩  | **Vencord built in**    | The full plugin, theme and tweak ecosystem, ready out of the box                           |
+| 🐧  | **Linux first-class**   | Native Wayland, screen sharing with audio, and better performance                          |
+| ⚡  | **Lightweight**         | No bundled Discord bloat, no telemetry — a noticeably snappier experience                  |
 
 ---
 
@@ -177,14 +177,20 @@ voice traffic.
 | **Profiles**       | Selective Discord HTTPS/WSS proxy routing and RTC relay        |
 | **DNS over HTTPS** | Chooses the DNS resolver used to turn hostnames into addresses |
 
-They are completely independent settings:
+They are separate systems, and they are **mutually exclusive**:
 
-- Selecting the **Newipe** profile never selects Newipe DoH.
-- Selecting **Cloudflare** DoH never changes the selected profile.
-- Newipe Profile with Cloudflare DoH is a valid combination, and so is Direct Connection with
-  Newipe DoH.
-- Disabling DoH, or changing the resolver, never disables or changes the proxy.
+- **DoH is unavailable while any network profile is active.** Selecting the **Newipe** profile or a
+  custom profile turns DoH off, hides its resolver choice and tells you why.
+- Only **No Profile — Direct Connection** permits DoH. Switching back to Direct Connection makes the
+  setting available again, but DoH stays off until you explicitly enable it.
+- The rule is enforced in the main process, not just by the settings UI: an IPC message or a hand
+  edited `settings.json` cannot enable DoH while a profile is selected.
+- Disabling DoH, or changing the resolver, never changes the selected profile.
 - Changing or removing a custom profile never changes your DNS provider.
+
+This is deliberate: a profile already decides how Discord's destinations are reached, and mixing the
+profile's routing with a third-party resolver would make its behaviour depend on DNS answers the
+profile operator does not control.
 
 ### Using the Newipe profile
 
@@ -194,14 +200,15 @@ They are completely independent settings:
 4. Dohcord retrieves and validates the profile's Network Configuration automatically.
 5. Once the status shows **Connected**, use Discord normally.
 
-Newipe uses this Network Configuration endpoint:
+The endpoint is stored in the profile. Newipe's built-in profile uses:
 
 ```text
 https://13.48.52.216:8443/network-config
 ```
 
 You do not need to enter proxy addresses, ports, TURN servers, credentials, destination domains or
-allowed ports. They all come from that endpoint.
+allowed ports. They all come from that endpoint, and so does the list of domains routed through the
+proxy.
 
 > [!NOTE]
 > Port **8443** is the Network Configuration endpoint. The HTTPS proxy is a separate connection and
@@ -233,19 +240,58 @@ invalid or expired configuration, you get an error and can retry or pick another
   [data directory](#manually-when-discord-will-not-load). They are kept separate from the
   built-in profiles shipped with the app.
 
+### Where the routing policy comes from
+
+The relay is the authoritative source of the routing policy. Each profile's Network Configuration
+response carries a versioned policy:
+
+```json
+{
+    "schemaVersion": 1,
+    "proxy": { "scheme": "https", "host": "13.48.52.216", "port": 443 },
+    "routing": {
+        "domains": [
+            { "host": "discord.com", "match": "suffix", "ports": [{ "from": 443, "to": 443 }] },
+            { "host": "example.com", "match": "exact", "ports": [{ "from": 443, "to": 443 }] }
+        ]
+    }
+}
+```
+
+- **Dohcord keeps no production domain allowlist.** It validates this response and builds its PAC
+  rules from it on every activation and refresh, so no compiled list or fallback list exists in the
+  client.
+- **Adding or removing an allowed domain is a relay change.** Add it to Dohcord-relay's
+  configuration and it starts or stops being routed after the next successful configuration refresh;
+  no Dohcord update is needed. Authorization stays on the relay, which remains authoritative.
+- `exact` matches only that hostname. `suffix` matches the hostname and its subdomains at DNS label
+  boundaries, so `discord.com` also matches `canary.discord.com` but never `notdiscord.com` or
+  `discord.com.example.org`. Matching is case insensitive and ignores a trailing root dot.
+- `ports` accepts exact ports and explicit ranges. A destination that matches a host rule but uses a
+  port the policy does not allow is refused, not sent direct.
+- Unrelated destinations always go **DIRECT**.
+- The configuration is fetched over HTTPS through a session that never uses the profile proxy, with
+  normal certificate validation, a timeout, a response size limit and full schema validation. DoH is
+  not used for that fetch.
+
 ### Connection behaviour
 
 - The Network Configuration endpoint must be reachable when a profile is activated and whenever its
   temporary credentials need refreshing.
-- Only approved Discord domains and ports are routed through the proxy. A hostname such as
-  `discord.com.evil.example` never matches `discord.com`, and unrelated traffic stays direct.
-- If the proxy cannot be reached, approved Discord destinations are **not** silently sent direct.
-  Discord reports a connection error and the profile status shows **Unavailable**, with **Retry**
-  available in settings. Choose **No Profile** to go back to direct networking.
+- If the proxy cannot be reached, approved Discord destinations are **not** silently sent direct and
+  the PAC rules have no `DIRECT` fallback. Discord reports a connection error and the profile status
+  shows **Unavailable**, with **Retry** available in settings. Choose **No Profile** to go back to
+  direct networking.
+- If the endpoint is unreachable or returns an invalid configuration, Dohcord applies no partial
+  policy and no hardcoded fallback. Before a first valid policy exists it blocks Discord's HTTPS/WSS
+  traffic instead of guessing. If a previously validated policy is already active, it stays in place
+  untouched while the status reports the failure and retries; the next valid response replaces it
+  atomically.
+- DoH stays disabled throughout, including after a failed configuration fetch.
 - If TURN fails, Discord voice can fall back to direct ICE without changing the HTTPS proxy policy.
   The profile card reports the voice state honestly.
 - Switching to **No Profile** removes the proxy configuration and restores direct Discord
-  networking.
+  networking, with DoH still off.
 
 > [!WARNING]
 > If a selected profile is unavailable when Dohcord starts, Discord cannot connect until the relay
@@ -259,8 +305,8 @@ invalid or expired configuration, you get an error and can retry or pick another
   encrypted TLS connection without decrypting it; Dohcord never installs a custom CA or bypasses
   certificate validation.
 - TURN provides separate relay functionality for Discord voice media.
-- DoH is independent: it changes how hostnames are resolved, while a profile changes where approved
-  Discord connections go.
+- DoH is not used while a profile is active: it is turned off and cannot be re-enabled until you
+  return to Direct Connection.
 - A profile is **not** a full-device VPN. The relay operator can observe connection metadata such as
   the destinations you connect to, and your own network can still see the relay's IP address,
   connection timing and traffic volume.
@@ -290,9 +336,11 @@ Prebuilt binaries are published on the **[Releases](../../releases/latest)** pag
 
 ### First launch
 
-The setup window opens on first start. Optionally choose a relay under **Profiles → Connection
-Profile**, then pick a provider under **DNS over HTTPS → Secure DNS Provider**, or choose **Custom**
-and paste your own resolver URL. Press **Get Started** when you are done.
+The setup window opens on first start. If you choose a relay under **Profiles → Connection Profile**,
+the DoH section is locked to **Off** and cannot be submitted, exactly as in the settings window. With
+**No Profile — Direct Connection** you can instead pick a provider under **DNS over HTTPS → Secure
+DNS Provider**, or choose **Custom** and paste your own resolver URL. Press **Get Started** when you
+are done.
 
 ### Any time later
 
@@ -341,6 +389,10 @@ directly:
 
 4. Save the file and start Dohcord.
 
+> [!NOTE]
+> A selected profile disables DoH regardless of these keys. Set `"profileId"` to `null` (or use
+> **No Profile**) before enabling DoH this way.
+
 Setting `"dohAllowFallback": true` allows plain DNS when the resolver is unreachable, which is a
 useful escape hatch if you are not sure about your resolver.
 
@@ -379,7 +431,7 @@ Dohcord stores its settings in `settings.json` inside the [data directory](#manu
 
 | Key                | Type      | Default | Description                                                                  |
 | ------------------ | --------- | ------- | ---------------------------------------------------------------------------- |
-| `enableDoh`        | `boolean` | `false` | Whether lookups are sent to the configured DoH resolver                      |
+| `enableDoh`        | `boolean` | `false` | Send lookups to the configured DoH resolver (ignored while a profile is set) |
 | `dohUrl`           | `string`  | —       | The RFC 8484 endpoint to use, e.g. `https://cloudflare-dns.com/dns-query`    |
 | `dohAllowFallback` | `boolean` | `false` | Allow plain DNS when the DoH resolver cannot be reached                      |
 | `profileId`        | `string`  | —       | Selected connection profile id, e.g. `newipe`. Omitted for Direct Connection |
@@ -419,8 +471,10 @@ No. A profile only routes approved Discord HTTPS and WebSocket destinations thro
 optional Discord voice media through TURN. Everything else keeps using your normal connection.
 
 **Do Profiles and DoH interfere with each other?**
-No. They are separate settings. You can use Newipe Profile with Cloudflare DoH, Direct Connection
-with Newipe DoH, or any other combination. Changing one never changes the other.
+They are separate systems, but only one can be active. DoH is unavailable while any network profile
+is selected, including Newipe and custom profiles. Choose **No Profile — Direct Connection** to use
+DoH; it does not turn itself back on, so enable it explicitly. A hand edited `enableDoh` setting is
+ignored while a profile is selected.
 
 **Can I share my custom profile with someone else?**
 They only need the Network Configuration URL and a name. TURN credentials are temporary and are
@@ -516,6 +570,7 @@ src/
 
 resolvers.json       DoH provider list fetched at runtime (DNS only)
 profiles.json        Built-in connection profiles packaged with the app
+scripts/test/        Node tests for routing validation, PAC behaviour and the DoH rule
 static/views/        Splash, first-launch and updater windows
 ```
 

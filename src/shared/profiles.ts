@@ -7,41 +7,34 @@
 import { parseDeclaredExpiry, parseRtcRelayCredentials, type RtcIceServer } from "./rtcRelay";
 
 /**
- * Connection profiles are completely independent from DoH. A profile describes a
- * selective HTTPS CONNECT proxy for Discord traffic and, optionally, a TURN relay
- * for Discord voice. Everything the client applies comes from the profile's own
- * Network Configuration endpoint, never from resolvers.json.
+ * Connection profiles describe a selective HTTPS CONNECT proxy for Discord
+ * traffic and, optionally, a TURN relay for Discord voice. Everything the client
+ * applies comes from the profile's own Network Configuration endpoint, which is
+ * also the only source of the routing policy. Dohcord keeps no production copy
+ * of the allowed domains.
+ *
+ * DoH is a separate system: it is only available in Direct Connection and is
+ * disabled whenever a profile is selected.
  */
 
 /** Value the profile pickers use for "no profile", a plain direct connection */
 export const DIRECT_PROFILE_VALUE = "direct";
 
+/** Shown wherever DoH is unavailable because a profile is active */
+export const DOH_PROFILE_BLOCK_MESSAGE = "DoH is unavailable while a Network Profile is enabled.";
+
 export const MAX_CUSTOM_PROFILES = 20;
 export const MAX_PROFILE_NAME_LENGTH = 64;
 export const MAX_NETWORK_CONFIG_URL_LENGTH = 512;
-export const MAX_ALLOWED_DESTINATIONS = 32;
-export const MAX_PORTS_PER_DESTINATION = 16;
-export const MAX_PORT_RANGES_PER_DESTINATION = 8;
-
-/** Domains Dohcord itself is willing to route through a profile proxy */
-export const DISCORD_DOMAIN_ROOTS = [
-    "discord.com",
-    "discord.gg",
-    "discordapp.com",
-    "discordapp.net",
-    "discord.media"
-] as const;
-
-/** Ports allowed on every Discord domain */
-export const DEFAULT_DISCORD_PORTS = [443];
-
-/** Dynamic voice endpoints are only allowed on discord.media, and only in this range */
-export const DISCORD_MEDIA_PORT_RANGE: PortRange = { from: 1024, to: 65535 };
+export const MAX_ROUTING_DOMAINS = 64;
+export const MAX_PORT_RANGES_PER_DOMAIN = 16;
+/** Largest Network Configuration response Dohcord will read */
+export const MAX_NETWORK_CONFIG_BYTES = 64 * 1024;
 
 /**
- * Used by the PAC script when a Discord destination is not permitted by the policy.
- * The request is sent to a port nothing listens on, so it fails instead of leaking
- * the original destination over a direct connection.
+ * Used by the PAC script when a destination matches the policy but its port is
+ * not allowed. The request is sent to a port nothing listens on, so it fails
+ * instead of leaking the original destination over a direct connection.
  */
 const PAC_REJECT_PROXY = "PROXY 127.0.0.1:9";
 
@@ -64,19 +57,25 @@ export interface PortRange {
     to: number;
 }
 
-export interface ProfileDestination {
-    domain: string;
-    ports: number[];
+export type RoutingMatch = "exact" | "suffix";
+
+export interface RoutingDomain {
+    host: string;
+    match: RoutingMatch;
     portRanges: PortRange[];
 }
 
 export interface ProfileNetworkConfig {
-    version: 1;
-    httpsProxy: {
+    schemaVersion: 1;
+    /** HTTPS CONNECT proxy supplied by the relay */
+    proxy: {
         url: string;
         host: string;
         port: number;
-        allowedDestinations: ProfileDestination[];
+    };
+    /** Authoritative routing policy returned by the relay */
+    routing: {
+        domains: RoutingDomain[];
     };
     /** Temporary TURN credentials; kept in memory only */
     rtcRelay?: {
@@ -116,8 +115,14 @@ export interface ProfileSaveResult {
 
 const PROFILE_ID = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const HOSTNAME = /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)*[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
+const IPV6 = /^[0-9a-f]{0,4}(?::[0-9a-f]{0,4}){2,7}$/;
 const TURN_URL =
     /^(turn|turns):(\[[0-9a-f:]+\]|[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?)(?::(\d{1,5}))?(?:\?transport=(?:udp|tcp))?$/i;
+
+/** A profile always disables DoH; only Direct Connection may use a resolver */
+export function resolveEffectiveDoh(profileId: string | undefined, enableDoh: boolean): boolean {
+    return enableDoh && !profileId;
+}
 
 /** Trims and validates a profile name entered by the user */
 export function normalizeProfileName(value: unknown): string | undefined {
@@ -201,71 +206,30 @@ function parseProfileList(value: unknown, type: ConnectionProfile["type"]): Conn
     return profiles;
 }
 
-/** Whether host equals domain or is a subdomain of it, never a lookalike suffix */
-export function isWithinDomain(host: string, domain: string): boolean {
-    return host === domain || host.endsWith(`.${domain}`);
-}
-
-/** Whether the domain is one Dohcord itself allows to be proxied */
-export function isDiscordDomain(domain: string): boolean {
-    return DISCORD_DOMAIN_ROOTS.some(root => isWithinDomain(domain, root));
-}
-
-/** The client's own maximum port scope; a server can narrow it but never widen it */
-export function isPortWithinClientPolicy(domain: string, port: number): boolean {
-    if (!Number.isInteger(port) || port < 1 || port > 65535) return false;
-    if (port === 443) return true;
-
-    return (
-        isWithinDomain(domain, "discord.media") &&
-        port >= DISCORD_MEDIA_PORT_RANGE.from &&
-        port <= DISCORD_MEDIA_PORT_RANGE.to
-    );
-}
-
-export function isPortAllowed(host: string, port: number, destinations: ProfileDestination[]): boolean {
-    return destinations.some(
-        destination =>
-            isWithinDomain(host, destination.domain) &&
-            (destination.ports.includes(port) ||
-                destination.portRanges.some(range => port >= range.from && port <= range.to))
-    );
-}
-
 /**
  * Parses and validates an untrusted Network Configuration response.
  *
- * The configuration may narrow the client's Discord scope, but anything outside the
- * client's own domain and port policy is rejected outright rather than ignored.
+ * The relay is the authoritative source of the routing policy; Dohcord only
+ * checks that the response is well formed and safe to turn into PAC rules.
  */
 export function parseNetworkConfig(value: unknown, now = Date.now()): NetworkConfigResult {
     if (typeof value !== "object" || value === null) return fail("The server did not return a JSON object");
 
     const root = value as Record<string, unknown>;
-    if (root.version !== 1) return fail("Unsupported Network Configuration version");
+    let config: ProfileNetworkConfig;
 
-    const proxy = root.httpsProxy;
-    if (typeof proxy !== "object" || proxy === null) return fail("The configuration has no httpsProxy object");
-
-    const { url: rawUrl, allowedDestinations } = proxy as { url?: unknown; allowedDestinations?: unknown };
-    const proxyUrl = normalizeNetworkConfigUrl(rawUrl);
-    if (!proxyUrl) return fail("The HTTPS proxy URL is missing or is not a valid https:// URL");
-
-    const parsedProxy = new URL(proxyUrl);
-    if (parsedProxy.port && Number(parsedProxy.port) < 1) return fail("The HTTPS proxy URL has an invalid port");
-
-    const destinations = parseDestinations(allowedDestinations);
-    if (typeof destinations === "string") return fail(destinations);
-
-    const config: ProfileNetworkConfig = {
-        version: 1,
-        httpsProxy: {
-            url: proxyUrl,
-            host: parsedProxy.hostname,
-            port: parsedProxy.port ? Number(parsedProxy.port) : 443,
-            allowedDestinations: destinations
+    try {
+        if (root.schemaVersion !== undefined) {
+            config = parseVersionedConfig(root);
+        } else if (root.version === 1) {
+            // Older relays only send the proxy block with its destination list
+            config = parseLegacyConfig(root);
+        } else {
+            return fail("Unsupported Network Configuration schema version");
         }
-    };
+    } catch (err) {
+        return fail(err instanceof Error ? err.message : String(err));
+    }
 
     if (root.rtcRelay !== undefined) {
         if (typeof root.rtcRelay !== "object" || root.rtcRelay === null) {
@@ -301,100 +265,196 @@ export function parseNetworkConfig(value: unknown, now = Date.now()): NetworkCon
     return { ok: true, config };
 }
 
-function parseDestinations(value: unknown): ProfileDestination[] | string {
-    if (!Array.isArray(value) || !value.length) return "The configuration allows no destinations";
-    if (value.length > MAX_ALLOWED_DESTINATIONS) return "The configuration allows too many destinations";
+function parseVersionedConfig(root: Record<string, unknown>): ProfileNetworkConfig {
+    if (root.schemaVersion !== 1) throw new Error("Unsupported Network Configuration schema version");
 
-    const destinations: ProfileDestination[] = [];
+    const proxy = parseProxyBlock(root.proxy);
+    const domains = parseRoutingPolicy(root.routing);
+
+    return {
+        schemaVersion: 1,
+        proxy,
+        routing: { domains }
+    };
+}
+
+function parseProxyBlock(value: unknown): ProfileNetworkConfig["proxy"] {
+    if (typeof value !== "object" || value === null) throw new Error("The configuration has no proxy object");
+
+    const { scheme, host: rawHost, port } = value as { scheme?: unknown; host?: unknown; port?: unknown };
+
+    if (scheme !== "https") throw new Error("The proxy scheme must be https");
+
+    const host = normalizeProxyHost(rawHost);
+    if (!host) throw new Error("The proxy host is invalid");
+    if (typeof port !== "number" || !Number.isInteger(port) || port < 1 || port > 65535) {
+        throw new Error("The proxy port is invalid");
+    }
+
+    return { url: `https://${formatHostPort(host, port)}/`, host, port };
+}
+
+function parseLegacyConfig(root: Record<string, unknown>): ProfileNetworkConfig {
+    const legacy = root.httpsProxy;
+    if (typeof legacy !== "object" || legacy === null) throw new Error("The configuration has no httpsProxy object");
+
+    const { url: rawUrl, allowedDestinations } = legacy as { url?: unknown; allowedDestinations?: unknown };
+    const proxyUrl = normalizeNetworkConfigUrl(rawUrl);
+    if (!proxyUrl) throw new Error("The HTTPS proxy URL is missing or is not a valid https:// URL");
+
+    const parsed = new URL(proxyUrl);
+    if (parsed.port && Number(parsed.port) < 1) throw new Error("The HTTPS proxy URL has an invalid port");
+
+    const domains = parseLegacyDestinations(allowedDestinations);
+
+    return {
+        schemaVersion: 1,
+        proxy: {
+            url: proxyUrl,
+            host: parsed.hostname,
+            port: parsed.port ? Number(parsed.port) : 443
+        },
+        routing: { domains }
+    };
+}
+
+function parseRoutingPolicy(value: unknown): RoutingDomain[] {
+    if (typeof value !== "object" || value === null) throw new Error("The configuration has no routing object");
+
+    const { domains } = value as { domains?: unknown };
+    if (!Array.isArray(domains) || !domains.length) throw new Error("The routing policy allows no domains");
+    if (domains.length > MAX_ROUTING_DOMAINS) throw new Error("The routing policy contains too many domains");
+
+    const parsed: RoutingDomain[] = [];
+    const seen = new Set<string>();
+
+    for (const entry of domains) {
+        if (typeof entry !== "object" || entry === null) throw new Error("The routing policy has an invalid domain");
+
+        const { host: rawHost, match, ports } = entry as { host?: unknown; match?: unknown; ports?: unknown };
+        const host = normalizeRoutingHost(rawHost);
+        if (!host) throw new Error(`The routing policy has an invalid host: ${String(rawHost)}`);
+
+        if (match !== "exact" && match !== "suffix") {
+            throw new Error(`The routing policy has an invalid match mode for ${host}`);
+        }
+
+        const key = `${match}:${host}`;
+        if (seen.has(key)) throw new Error(`The routing policy contains ${host} twice`);
+        seen.add(key);
+
+        const portRanges = parsePortRanges(ports);
+        if (!portRanges.length) throw new Error(`The routing policy allows no ports for ${host}`);
+
+        parsed.push({ host, match, portRanges });
+    }
+
+    return parsed;
+}
+
+function parseLegacyDestinations(value: unknown): RoutingDomain[] {
+    if (!Array.isArray(value) || !value.length) throw new Error("The configuration allows no destinations");
+    if (value.length > MAX_ROUTING_DOMAINS) throw new Error("The configuration allows too many destinations");
+
+    const parsed: RoutingDomain[] = [];
+    const seen = new Set<string>();
 
     for (const entry of value) {
-        if (typeof entry !== "object" || entry === null) return "The configuration contains an invalid destination";
-
-        const {
-            domain: rawDomain,
-            ports: rawPorts,
-            portRanges: rawRanges
-        } = entry as {
-            domain?: unknown;
-            ports?: unknown;
-            portRanges?: unknown;
-        };
-
-        if (typeof rawDomain !== "string") return "A destination has no domain";
-
-        const domain = rawDomain.trim().toLowerCase();
-        if (!HOSTNAME.test(domain) || domain.startsWith("."))
-            return `The destination "${rawDomain}" is not a valid domain`;
-
-        // A server may narrow the scope, never expand it to other infrastructure
-        if (!isDiscordDomain(domain)) return `The destination "${domain}" is not a Discord domain Dohcord allows`;
-
-        const ports = parsePorts(rawPorts);
-        if (typeof ports === "string") return ports;
-
-        const portRanges = parsePortRanges(rawRanges);
-        if (typeof portRanges === "string") return portRanges;
-
-        if (!ports.length && !portRanges.length) return `The destination "${domain}" allows no ports`;
-
-        for (const port of ports) {
-            if (!isPortWithinClientPolicy(domain, port)) {
-                return `The destination "${domain}" requests port ${port}, which is outside Dohcord's Discord policy`;
-            }
+        if (typeof entry !== "object" || entry === null) {
+            throw new Error("The configuration contains an invalid destination");
         }
 
-        for (const range of portRanges) {
-            if (range.to > DISCORD_MEDIA_PORT_RANGE.to || range.from < DISCORD_MEDIA_PORT_RANGE.from) {
-                return `The destination "${domain}" requests a port range outside Dohcord's Discord policy`;
-            }
-            if (!isWithinDomain(domain, "discord.media")) {
-                return `Only discord.media may use a dynamic port range, not "${domain}"`;
-            }
-        }
+        const { domain, ports, portRanges } = entry as { domain?: unknown; ports?: unknown; portRanges?: unknown };
+        const host = normalizeRoutingHost(domain);
+        if (!host) throw new Error(`The destination "${String(domain)}" is not a valid host`);
 
-        destinations.push({ domain, ports, portRanges });
+        const ranges = parseLegacyPorts(ports, portRanges);
+        if (!ranges.length) throw new Error(`The destination "${host}" allows no ports`);
+        if (seen.has(host)) throw new Error(`The destination "${host}" appears twice`);
+        seen.add(host);
+
+        parsed.push({ host, match: "suffix", portRanges: ranges });
     }
 
-    return destinations;
+    return parsed;
 }
 
-function parsePorts(value: unknown): number[] | string {
-    if (value === undefined || value === null) return [];
-    if (!Array.isArray(value)) return "A destination has an invalid port list";
-    if (value.length > MAX_PORTS_PER_DESTINATION) return "A destination lists too many ports";
-
-    const ports: number[] = [];
-
-    for (const port of value) {
-        if (typeof port !== "number" || !Number.isInteger(port) || port < 1 || port > 65535) {
-            return "A destination lists an invalid port";
-        }
-        if (!ports.includes(port)) ports.push(port);
-    }
-
-    return ports;
-}
-
-function parsePortRanges(value: unknown): PortRange[] | string {
-    if (value === undefined || value === null) return [];
-    if (!Array.isArray(value)) return "A destination has an invalid port range list";
-    if (value.length > MAX_PORT_RANGES_PER_DESTINATION) return "A destination lists too many port ranges";
+function parsePortRanges(value: unknown): PortRange[] {
+    if (!Array.isArray(value)) throw new Error("A routing entry has an invalid port list");
+    if (value.length > MAX_PORT_RANGES_PER_DOMAIN) throw new Error("A routing entry lists too many port ranges");
 
     const ranges: PortRange[] = [];
 
     for (const entry of value) {
-        if (typeof entry !== "object" || entry === null) return "A destination has an invalid port range";
+        if (typeof entry !== "object" || entry === null) throw new Error("A routing entry has an invalid port range");
 
         const { from, to } = entry as { from?: unknown; to?: unknown };
-        if (typeof from !== "number" || typeof to !== "number") return "A destination has an invalid port range";
-        if (!Number.isInteger(from) || !Number.isInteger(to) || from < 1 || to > 65535 || from > to) {
-            return "A destination has an invalid port range";
+        if (!isValidPort(from) || !isValidPort(to) || from > to) {
+            throw new Error("A routing entry has an invalid port range");
         }
 
         if (!ranges.some(range => range.from === from && range.to === to)) ranges.push({ from, to });
     }
 
     return ranges;
+}
+
+function parseLegacyPorts(ports: unknown, portRanges: unknown): PortRange[] {
+    const ranges: PortRange[] = [];
+
+    if (ports !== undefined && ports !== null) {
+        if (!Array.isArray(ports)) throw new Error("A destination has an invalid port list");
+        if (ports.length > MAX_PORT_RANGES_PER_DOMAIN) throw new Error("A destination lists too many ports");
+
+        for (const port of ports) {
+            if (!isValidPort(port)) throw new Error("A destination lists an invalid port");
+            if (!ranges.some(range => range.from === port && range.to === port)) ranges.push({ from: port, to: port });
+        }
+    }
+
+    if (portRanges !== undefined && portRanges !== null) {
+        if (!Array.isArray(portRanges)) throw new Error("A destination has an invalid port range list");
+        if (portRanges.length > MAX_PORT_RANGES_PER_DOMAIN) throw new Error("A destination lists too many port ranges");
+
+        for (const entry of portRanges) {
+            if (typeof entry !== "object" || entry === null) throw new Error("A destination has an invalid port range");
+
+            const { from, to } = entry as { from?: unknown; to?: unknown };
+            if (!isValidPort(from) || !isValidPort(to) || from > to) {
+                throw new Error("A destination has an invalid port range");
+            }
+
+            if (!ranges.some(range => range.from === from && range.to === to)) ranges.push({ from, to });
+        }
+    }
+
+    return ranges;
+}
+
+function isValidPort(value: unknown): value is number {
+    return typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 65535;
+}
+
+/** Lowercases and removes a trailing root dot, as DNS names are case insensitive */
+function normalizeRoutingHost(value: unknown): string | undefined {
+    if (typeof value !== "string") return;
+
+    let host = value.trim().toLowerCase();
+    while (host.endsWith(".")) host = host.slice(0, -1);
+
+    if (!host || host.length > 253) return;
+    if (!HOSTNAME.test(host)) return;
+
+    return host;
+}
+
+function normalizeProxyHost(value: unknown): string | undefined {
+    const host = normalizeRoutingHost(value);
+    if (host) return host;
+
+    if (typeof value === "string" && IPV6.test(value.trim().toLowerCase())) return value.trim().toLowerCase();
+
+    return undefined;
 }
 
 function getTurnUrlError(url: string): string | undefined {
@@ -410,29 +470,37 @@ function getTurnUrlError(url: string): string | undefined {
 }
 
 /**
- * Builds the PAC script for a validated configuration.
+ * Builds the PAC script from the validated routing policy.
  *
- * Only approved Discord destinations use the HTTPS proxy. Everything else stays
- * DIRECT. An approved hostname on a port the policy does not allow is rejected
- * rather than sent direct, so the original destination cannot leak.
+ * A matching destination and port uses the HTTPS proxy. A matching destination
+ * on a port the policy does not allow is rejected instead of sent direct. All
+ * unrelated destinations stay DIRECT. The proxy is never followed by DIRECT, so
+ * a relay failure cannot silently bypass the profile.
  */
 export function buildPacScript(config: ProfileNetworkConfig): string {
-    const proxy = `HTTPS ${formatHostPort(config.httpsProxy.host, config.httpsProxy.port)}`;
-    const destinations = config.httpsProxy.allowedDestinations.map(destination => ({
-        domain: destination.domain,
-        ports: destination.ports,
-        ranges: destination.portRanges.map(range => [range.from, range.to])
+    const proxy = `HTTPS ${formatHostPort(config.proxy.host, config.proxy.port)}`;
+    const rules = config.routing.domains.map(domain => ({
+        host: domain.host,
+        exact: domain.match === "exact",
+        ranges: domain.portRanges.map(range => [range.from, range.to])
     }));
 
     return `/* Dohcord connection profile */
 var DOHCORD_PROXY = ${JSON.stringify(proxy)};
 var DOHCORD_REJECT = ${JSON.stringify(PAC_REJECT_PROXY)};
-var DOHCORD_DESTINATIONS = ${JSON.stringify(destinations)};
+var DOHCORD_RULES = ${JSON.stringify(rules)};
 
-function dohcordMatchesDomain(host, domain) {
-    if (host === domain) return true;
-    if (host.length <= domain.length) return false;
-    return host.substring(host.length - domain.length - 1) === "." + domain;
+function dohcordNormalizeHost(host) {
+    host = host.toLowerCase();
+    while (host.length > 1 && host.charAt(host.length - 1) === ".") host = host.substring(0, host.length - 1);
+    return host;
+}
+
+function dohcordMatches(host, rule) {
+    if (host === rule.host) return true;
+    if (rule.exact) return false;
+    if (host.length <= rule.host.length) return false;
+    return host.substring(host.length - rule.host.length - 1) === "." + rule.host;
 }
 
 function dohcordPort(url) {
@@ -464,13 +532,9 @@ function dohcordPort(url) {
     return colon >= 0 ? parseInt(authority.substring(colon + 1), 10) || 0 : 443;
 }
 
-function dohcordPortAllowed(port, destination) {
-    for (var i = 0; i < destination.ports.length; i++) {
-        if (destination.ports[i] === port) return true;
-    }
-
-    for (var j = 0; j < destination.ranges.length; j++) {
-        if (port >= destination.ranges[j][0] && port <= destination.ranges[j][1]) return true;
+function dohcordPortAllowed(port, rule) {
+    for (var i = 0; i < rule.ranges.length; i++) {
+        if (port >= rule.ranges[i][0] && port <= rule.ranges[i][1]) return true;
     }
 
     return false;
@@ -483,15 +547,15 @@ function FindProxyForURL(url, host) {
     var scheme = url.substring(0, schemeEnd).toLowerCase();
     if (scheme !== "https" && scheme !== "wss") return "DIRECT";
 
-    host = host.toLowerCase();
+    host = dohcordNormalizeHost(host);
     var port = dohcordPort(url);
     if (!port) return DOHCORD_REJECT;
 
-    for (var i = 0; i < DOHCORD_DESTINATIONS.length; i++) {
-        var destination = DOHCORD_DESTINATIONS[i];
-        if (!dohcordMatchesDomain(host, destination.domain)) continue;
+    for (var i = 0; i < DOHCORD_RULES.length; i++) {
+        var rule = DOHCORD_RULES[i];
+        if (!dohcordMatches(host, rule)) continue;
 
-        return dohcordPortAllowed(port, destination) ? DOHCORD_PROXY : DOHCORD_REJECT;
+        return dohcordPortAllowed(port, rule) ? DOHCORD_PROXY : DOHCORD_REJECT;
     }
 
     return "DIRECT";
@@ -500,20 +564,14 @@ function FindProxyForURL(url, host) {
 }
 
 /**
- * Fail closed policy used while a selected profile's configuration is unavailable.
- * Discord destinations are blackholed instead of silently going direct; everything
- * else keeps working normally.
+ * Fail-closed policy used while an active profile's configuration is unavailable
+ * and no policy has been applied yet. Because no destination list is known, every
+ * HTTPS/WSS connection is refused rather than guessed at. Loopback stays direct so
+ * local tooling keeps working.
  */
 export function buildUnavailablePacScript(): string {
     return `/* Dohcord connection profile: configuration unavailable */
 var DOHCORD_REJECT = ${JSON.stringify(PAC_REJECT_PROXY)};
-var DOHCORD_ROOTS = ${JSON.stringify(DISCORD_DOMAIN_ROOTS)};
-
-function dohcordMatchesDomain(host, domain) {
-    if (host === domain) return true;
-    if (host.length <= domain.length) return false;
-    return host.substring(host.length - domain.length - 1) === "." + domain;
-}
 
 function FindProxyForURL(url, host) {
     var schemeEnd = url.indexOf(":");
@@ -523,12 +581,11 @@ function FindProxyForURL(url, host) {
     if (scheme !== "https" && scheme !== "wss") return "DIRECT";
 
     host = host.toLowerCase();
+    while (host.length > 1 && host.charAt(host.length - 1) === ".") host = host.substring(0, host.length - 1);
 
-    for (var i = 0; i < DOHCORD_ROOTS.length; i++) {
-        if (dohcordMatchesDomain(host, DOHCORD_ROOTS[i])) return DOHCORD_REJECT;
-    }
+    if (host === "localhost" || host === "127.0.0.1" || host === "::1") return "DIRECT";
 
-    return "DIRECT";
+    return DOHCORD_REJECT;
 }
 `;
 }

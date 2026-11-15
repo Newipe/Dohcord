@@ -23,6 +23,7 @@ import {
     parseDohResolvers,
     REMOTE_DOH_RESOLVERS_URL
 } from "../../../shared/doh";
+import { DOH_PROFILE_BLOCK_MESSAGE } from "../../../shared/profiles";
 import { SimpleErrorBoundary } from "../SimpleErrorBoundary";
 import { SettingsComponent } from "./Settings";
 
@@ -67,8 +68,10 @@ export const DoH: SettingsComponent = ({ settings }) => {
         };
     }, []);
 
-    const provider = customMode ? DOH_CUSTOM : getDohProviderValue(settings, resolvers);
-    const isCustom = provider === DOH_CUSTOM;
+    // A selected profile disables DoH; the main process enforces this too
+    const profileActive = Boolean(settings.profileId);
+    const provider = profileActive ? DOH_OFF : customMode ? DOH_CUSTOM : getDohProviderValue(settings, resolvers);
+    const isCustom = !profileActive && provider === DOH_CUSTOM;
     const enabled = provider !== DOH_OFF;
 
     const customUrl = isCustom ? (draft ?? settings.dohUrl ?? "") : "";
@@ -81,15 +84,19 @@ export const DoH: SettingsComponent = ({ settings }) => {
     const appliedResolver = enabled ? findDohResolver(resolvers, settings.dohUrl) : undefined;
     const appliedHost = appliedResolver ? undefined : getDohHost(settings.dohUrl);
 
-    const hint = !enabled
-        ? "Lookups use the system resolver, so your network can read, spoof or block them."
-        : customUrlError
-          ? "A custom URL is being edited — the resolver above stays active until it is valid."
-          : `Lookups go to ${appliedResolver?.label ?? appliedHost}${
-                appliedResolver?.description ? ` — ${appliedResolver.description}` : ""
-            }`;
+    const hint = profileActive
+        ? DOH_PROFILE_BLOCK_MESSAGE
+        : !enabled
+          ? "Lookups use the system resolver, so your network can read, spoof or block them."
+          : customUrlError
+            ? "A custom URL is being edited — the resolver above stays active until it is valid."
+            : `Lookups go to ${appliedResolver?.label ?? appliedHost}${
+                  appliedResolver?.description ? ` — ${appliedResolver.description}` : ""
+              }`;
 
     const onProviderChange = (value: string) => {
+        if (profileActive) return;
+
         setTest(undefined);
 
         if (value === DOH_OFF) {
@@ -168,6 +175,7 @@ export const DoH: SettingsComponent = ({ settings }) => {
                             { label: "Custom…", value: DOH_CUSTOM }
                         ]}
                         closeOnSelect
+                        isDisabled={profileActive}
                         select={onProviderChange}
                         isSelected={(value: string) => value === provider}
                         serialize={(value: string) => value}
@@ -208,7 +216,12 @@ export const DoH: SettingsComponent = ({ settings }) => {
                 />
 
                 <div className={cl("actions")}>
-                    <Button variant="secondary" size="small" onClick={runTest} disabled={test === "pending"}>
+                    <Button
+                        variant="secondary"
+                        size="small"
+                        onClick={runTest}
+                        disabled={profileActive || test === "pending"}
+                    >
                         {test === "pending" ? "Testing…" : "Test Resolution"}
                     </Button>
 

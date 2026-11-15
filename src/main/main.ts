@@ -12,12 +12,13 @@ import "./userAssets";
 import "./vesktopProtocol";
 import { app, BrowserWindow, nativeTheme } from "electron";
 import { normalizeDohUrl } from "shared/doh";
+import { resolveEffectiveDoh } from "shared/profiles";
 
 import { DATA_DIR } from "./constants";
 import { createFirstLaunchTour } from "./firstLaunch";
 import { createWindows, mainWin, openDeepLink } from "./mainWindow";
 import { registerMediaPermissionsHandler } from "./mediaPermissions";
-import { applySelectedProfile, initProfiles } from "./profiles";
+import { applySelectedProfile, enforceDohPolicy, initProfiles, isProfileActive } from "./profiles";
 import { registerScreenShareHandler } from "./screenShare";
 import { Settings, State } from "./settings";
 import { setAsDefaultProtocolClient } from "./utils/setAsDefaultProtocolClient";
@@ -123,8 +124,9 @@ function init() {
         registerScreenShareHandler();
         registerMediaPermissionsHandler();
 
-        applyDohSettings();
+        // The selected profile decides whether DoH may start, so it is resolved first
         initProfiles();
+        applyDohSettings();
 
         // A selected profile must install its proxy policy before Discord loads,
         // so no approved destination is ever sent direct while it is set up
@@ -188,10 +190,15 @@ Settings.addChangeListener("webRTCIPHandlingPolicy", () => {
 function applyDohSettings() {
     if (!app.isReady()) return;
 
-    const { enableDoh, dohUrl, dohAllowFallback } = Settings.store;
-    const url = enableDoh ? normalizeDohUrl(dohUrl) : undefined;
+    // Central rule: an active profile disables DoH, whatever the saved settings say.
+    // The renderer and IPC layer cannot turn it back on.
+    enforceDohPolicy();
 
-    if (enableDoh && !url) {
+    const { enableDoh, dohUrl, dohAllowFallback } = Settings.store;
+    const enabled = resolveEffectiveDoh(Settings.store.profileId, enableDoh);
+    const url = enabled ? normalizeDohUrl(dohUrl) : undefined;
+
+    if (enabled && !url) {
         console.warn("[DoH] Ignoring unusable resolver URL:", dohUrl);
     }
 
@@ -215,8 +222,10 @@ function applyDohSettings() {
 
     if (url) {
         console.log(`[DoH] Encrypting DNS via ${url} (secureDnsMode: ${config.secureDnsMode})`);
-    } else if (enableDoh) {
+    } else if (enabled) {
         console.warn("[DoH] No usable resolver configured, using system DNS");
+    } else if (isProfileActive()) {
+        console.log("[DoH] Disabled while a Network Profile is selected");
     }
 }
 

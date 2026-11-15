@@ -16,6 +16,7 @@ import {
     type CustomProfileInput,
     isValidProfileId,
     MAX_CUSTOM_PROFILES,
+    MAX_NETWORK_CONFIG_BYTES,
     normalizeNetworkConfigUrl,
     normalizeProfileName,
     type NetworkConfigResult,
@@ -64,6 +65,8 @@ let proxyInstalled = false;
 let appliedProxySignature: string | undefined;
 /** The active PAC policy has been proven to reach Discord through the proxy */
 let proxyVerified = false;
+/** The policy currently applied, so a failed refresh does not partially replace it */
+let activeConfig: { profileId: string; config: ProfileNetworkConfig } | undefined;
 
 let configSession: Electron.Session | undefined;
 
@@ -71,9 +74,28 @@ export function initProfiles() {
     loadPackagedProfiles();
     loadCustomProfiles();
 
+    // A selected profile disables DoH before any DoH component is initialised.
+    // This also drops a saved DoH setting so it cannot come back by itself.
+    enforceDohPolicy();
+
     Settings.addChangeListener("profileId", () => void applySelectedProfile());
 
     void applySelectedProfile();
+}
+
+/** Whether a non-direct profile is selected, regardless of whether it is usable */
+export function isProfileActive(): boolean {
+    return getSelectedProfileId() !== undefined;
+}
+
+/** Forces DoH off while a profile is active and returns whether it changed */
+export function enforceDohPolicy(): boolean {
+    if (!isProfileActive() || !Settings.store.enableDoh) return false;
+
+    console.log("[Profiles] DoH disabled because a Network Profile is selected");
+    Settings.store.enableDoh = false;
+
+    return true;
 }
 
 export function getProfiles(): ConnectionProfile[] {
@@ -127,8 +149,13 @@ async function runApply(id: string | undefined) {
     const ses = session.defaultSession;
     const profile = findProfile(id);
 
+    // DoH must never be active while a profile is selected, including while the
+    // profile is being configured or is unavailable
+    if (id) enforceDohPolicy();
+
     if (!id) {
         primed = undefined;
+        activeConfig = undefined;
         failureCount = 0;
         await resetProxy(ses);
         publishRtcRelaySnapshot({ enabled: false });
@@ -138,6 +165,7 @@ async function runApply(id: string | undefined) {
 
     if (!profile) {
         primed = undefined;
+        activeConfig = undefined;
         proxyVerified = false;
         publishRtcRelaySnapshot({ enabled: false });
         // Fail closed rather than quietly sending Discord direct
@@ -168,8 +196,13 @@ async function runApply(id: string | undefined) {
 
         if (!result.ok) {
             publishRtcRelaySnapshot({ enabled: true, error: result.error });
-            proxyVerified = false;
-            await installPac(ses, buildUnavailablePacScript());
+
+            // Keep a policy that is already active; only fail closed when there is
+            // nothing valid to apply. A partial or guessed policy is never applied.
+            if (activeConfig?.profileId !== profile.id) {
+                proxyVerified = false;
+                await installPac(ses, buildUnavailablePacScript());
+            }
 
             setStatus({
                 profileId: profile.id,
@@ -211,7 +244,7 @@ async function runApply(id: string | undefined) {
         setStatus({
             profileId: profile.id,
             profileName: profile.name,
-            proxyHost: config.httpsProxy.host,
+            proxyHost: config.proxy.host,
             state: "unavailable",
             message: policyProblem
         });
@@ -219,9 +252,11 @@ async function runApply(id: string | undefined) {
         return;
     }
 
+    activeConfig = { profileId: profile.id, config };
+
     console.log(
-        `[Profiles] Applied ${profile.name}: HTTPS proxy ${config.httpsProxy.host}:${config.httpsProxy.port}, ` +
-            `${config.httpsProxy.allowedDestinations.length} allowed Discord destinations`
+        `[Profiles] Applied ${profile.name}: HTTPS proxy ${config.proxy.host}:${config.proxy.port}, ` +
+            `${config.routing.domains.length} routed domains from the relay policy`
     );
 
     // Temporary TURN credentials stay in memory and are never written to disk
@@ -246,7 +281,7 @@ async function runApply(id: string | undefined) {
             setStatus({
                 profileId: profile.id,
                 profileName: profile.name,
-                proxyHost: config.httpsProxy.host,
+                proxyHost: config.proxy.host,
                 state: "unavailable",
                 message: probe.error
             });
@@ -262,9 +297,9 @@ async function runApply(id: string | undefined) {
     setStatus({
         profileId: profile.id,
         profileName: profile.name,
-        proxyHost: config.httpsProxy.host,
+        proxyHost: config.proxy.host,
         state: "connected",
-        message: `Discord traffic is routed through ${config.httpsProxy.host}:${config.httpsProxy.port}`
+        message: `Discord traffic is routed through ${config.proxy.host}:${config.proxy.port}`
     });
 
     scheduleExpiryRefresh(config);
@@ -309,11 +344,11 @@ async function installPac(ses: Electron.Session, script: string) {
  * would silently leak the very traffic the profile is meant to route.
  */
 async function verifyPacDecision(ses: Electron.Session, config: ProfileNetworkConfig): Promise<string | undefined> {
-    const destination = config.httpsProxy.allowedDestinations[0];
+    const destination = config.routing.domains[0];
     if (!destination) return "The proxy policy allows no destinations";
 
-    const port = destination.ports[0] ?? destination.portRanges[0]?.from ?? 443;
-    const authority = port === 443 ? destination.domain : `${destination.domain}:${port}`;
+    const port = destination.portRanges[0].from;
+    const authority = port === 443 ? destination.host : `${destination.host}:${port}`;
 
     let decision: string;
     try {
@@ -323,7 +358,7 @@ async function verifyPacDecision(ses: Electron.Session, config: ProfileNetworkCo
     }
 
     if (!/^HTTPS\s/i.test(decision.trim())) {
-        return `Chromium resolved ${destination.domain} to ${decision.trim() || "nothing"} instead of the profile proxy`;
+        return `Chromium resolved ${destination.host} to ${decision.trim() || "nothing"} instead of the profile proxy`;
     }
 
     return undefined;
@@ -372,12 +407,58 @@ export async function fetchNetworkConfig(url: string): Promise<NetworkConfigResu
 
     let json: unknown;
     try {
-        json = await response.json();
-    } catch {
-        return { ok: false, error: "The Network Configuration endpoint did not return valid JSON" };
+        json = await readConfigJson(response);
+    } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : String(err) };
     }
 
     return parseNetworkConfig(json);
+}
+
+/** Reads a bounded JSON body; the endpoint is untrusted and must not exhaust memory */
+async function readConfigJson(response: Awaited<ReturnType<Electron.Session["fetch"]>>): Promise<unknown> {
+    const contentType = response.headers.get("content-type");
+    if (contentType && !/json/i.test(contentType)) {
+        throw new Error("The Network Configuration endpoint did not return JSON");
+    }
+
+    const body = response.body;
+    if (!body) {
+        const text = await response.text();
+        if (Buffer.byteLength(text) > MAX_NETWORK_CONFIG_BYTES) {
+            throw new Error("The Network Configuration response is too large");
+        }
+
+        try {
+            return JSON.parse(text);
+        } catch {
+            throw new Error("The Network Configuration endpoint did not return valid JSON");
+        }
+    }
+
+    const reader = body.getReader();
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+
+    for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (!value) continue;
+
+        total += value.byteLength;
+        if (total > MAX_NETWORK_CONFIG_BYTES) {
+            await reader.cancel().catch(() => {});
+            throw new Error("The Network Configuration response is too large");
+        }
+
+        chunks.push(value);
+    }
+
+    try {
+        return JSON.parse(Buffer.concat(chunks.map(chunk => Buffer.from(chunk))).toString("utf8"));
+    } catch {
+        throw new Error("The Network Configuration endpoint did not return valid JSON");
+    }
 }
 
 /** Validates a profile without applying it, used by the first launch window */

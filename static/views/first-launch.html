@@ -186,6 +186,12 @@
             border-color: var(--accent);
         }
 
+        .select-trigger:disabled,
+        .select-trigger[aria-disabled="true"] {
+            opacity: 0.55;
+            cursor: not-allowed;
+        }
+
         .select-trigger:focus-visible {
             outline: 2px solid var(--link);
             outline-offset: 1px;
@@ -305,6 +311,17 @@
             color: var(--danger);
         }
 
+        .doh-lock {
+            margin: 0;
+            padding: 10px 12px;
+            border: 1px solid rgba(240, 178, 50, 0.35);
+            border-radius: 8px;
+            background: rgba(240, 178, 50, 0.1);
+            color: #f0b232;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
         .doh-hint {
             margin: 0;
         }
@@ -418,6 +435,10 @@
 
         <p class="section-label">DNS over HTTPS</p>
 
+        <p class="doh-lock" id="dohLockNotice" role="note" hidden>
+            DoH is unavailable while a Network Profile is enabled.
+        </p>
+
         <label>
             <div>
                 <h2>Secure DNS Provider</h2>
@@ -490,6 +511,7 @@
     const dohUrlRow = document.getElementById("dohUrlRow");
     const dohUrlInput = document.querySelector('input[name="dohUrl"]');
     const dohUrlHint = document.getElementById("dohUrlHint");
+    const dohLockNotice = document.getElementById("dohLockNotice");
     const remoteResolversUrl = "https://raw.githubusercontent.com/Newipe/Dohcord/main/resolvers.json";
 
     const defaultHint = dohUrlHint.textContent;
@@ -742,7 +764,18 @@
             });
         }
 
-        const api = { open, close, refresh: sync };
+        const api = {
+            open,
+            close,
+            refresh: sync,
+            setDisabled(disabled) {
+                select.disabled = disabled;
+                trigger.disabled = disabled;
+                trigger.setAttribute("aria-disabled", String(disabled));
+                wrapper.classList.toggle("is-disabled", disabled);
+                if (disabled) close();
+            }
+        };
         sync();
 
         return api;
@@ -774,6 +807,27 @@
         );
     }
 
+    /* A profile disables DoH; the main process enforces the same rule         */
+    function applyDohLock() {
+        const locked = profileSelectElement.value !== "direct";
+
+        dohLockNotice.hidden = !locked;
+        dohSelect.setDisabled(locked);
+        dohUrlInput.disabled = locked;
+
+        if (locked) {
+            // Force the effective choice to Off instead of remembering a resolver
+            dohProviderSelect.value = "off";
+            dohUrlInput.value = "";
+            dohUrlRow.style.display = "none";
+            dohUrlRow.classList.remove("error");
+            dohSelect.refresh();
+            return;
+        }
+
+        updateDohRow();
+    }
+
     // Called by the main process with the packaged and custom profiles
     window.__dohcordProfiles = profiles => {
         if (!Array.isArray(profiles)) return;
@@ -797,6 +851,7 @@
 
         profileSelect.refresh();
         updateProfileHint();
+        applyDohLock();
     };
 
     window.__dohcordProfileState = text => {
@@ -811,7 +866,10 @@
         submitButton.textContent = "Get Started";
     };
 
-    profileSelectElement.addEventListener("change", updateProfileHint);
+    profileSelectElement.addEventListener("change", () => {
+        updateProfileHint();
+        applyDohLock();
+    });
 
     console.info("profiles:init");
 
@@ -851,8 +909,7 @@
             dohProviderSelect.value = previous;
             if (dohProviderSelect.value !== previous) dohProviderSelect.value = "off";
 
-            dohSelect.refresh();
-            updateDohRow();
+            applyDohLock();
         })
         .catch(() => {});
 
@@ -881,6 +938,7 @@
     dohUrlInput.addEventListener("input", () => dohUrlRow.classList.remove("error"));
 
     updateDohRow();
+    applyDohLock();
 
     document.getElementById("cancel").onclick = () => console.info("cancel");
 
@@ -889,8 +947,14 @@
 
         const data = Object.fromEntries(new FormData(form).entries());
         const provider = data.dohProvider;
+        const profileSelected = typeof data.profileId === "string" && data.profileId !== "direct";
 
-        if (provider === "off") {
+        if (profileSelected) {
+            // Never submit an active resolver alongside a profile, whatever the
+            // controls happen to contain
+            delete data.enableDoh;
+            delete data.dohUrl;
+        } else if (provider === "off") {
             delete data.enableDoh;
             delete data.dohUrl;
         } else if (provider === "custom") {

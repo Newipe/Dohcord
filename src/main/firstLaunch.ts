@@ -111,12 +111,19 @@ export function createFirstLaunchTour() {
         Settings.store.minimizeToTray = !!data.minimizeToTray;
         Settings.store.arRPC = !!data.richPresence;
 
-        if (data.enableDoh === "on") {
+        if (!requestedProfile && data.enableDoh === "on") {
             Settings.store.enableDoh = true;
             // Unusable URLs are dropped rather than applied, the setup window
             // validates custom ones but the remote provider list is not trusted
             Settings.store.dohUrl = normalizeDohUrl(data.dohUrl);
         } else {
+            Settings.store.enableDoh = false;
+            Settings.store.dohUrl = undefined;
+        }
+
+        if (requestedProfile) {
+            // Belt and braces: the selected profile disables DoH, and the setup
+            // window must not leave a resolver behind to be re-enabled later
             Settings.store.enableDoh = false;
             Settings.store.dohUrl = undefined;
         }
