@@ -10,7 +10,7 @@
         "id": "newipe-2",
         "name": "Newipe 2",
         "description": "Backup relay for Newipe, for when the primary server is unreachable.",
-        "networkConfigUrl": "https://13.48.52.216:8443/network-config",
+        "networkConfigUrl": "https://13.63.41.32:8443/network-config",
         "type": "builtin"
     }
 ]
