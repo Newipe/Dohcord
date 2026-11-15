@@ -204,7 +204,7 @@ profile operator does not control.
 The endpoint is stored in the profile. Newipe's built-in profile uses:
 
 ```text
-https://13.48.52.216:8443/network-config
+https://13.48.244.118:8443/network-config
 ```
 
 You do not need to enter proxy addresses, ports, TURN servers, credentials, destination domains or
@@ -249,7 +249,7 @@ response carries a versioned policy:
 ```json
 {
     "schemaVersion": 1,
-    "proxy": { "scheme": "https", "host": "13.48.52.216", "port": 443 },
+    "proxy": { "scheme": "https", "host": "13.48.244.118", "port": 443 },
     "routing": {
         "domains": [
             { "host": "discord.com", "match": "suffix", "ports": [{ "from": 443, "to": 443 }] },
