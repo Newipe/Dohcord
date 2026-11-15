@@ -620,7 +620,7 @@ If you find Dohcord useful, you can support its continued development with a cry
 | Network | Address |
 | ------- | ------- |
 | **BEP20** | `0xdF83aB1a352018e3b5e2baBe19385C9BB54c0D11` |
-| **TRC20** | `TXRYotwP995tcW6H91JtZCgiCjzyYdqxau` |
+| **TRC20** | `TXRYotwP995tcW6H91JtZCgiCjzyYdqxau`         |
 
 > [!IMPORTANT]
 > Make sure you select the correct network before sending. Only send an asset supported by the receiving address on that network. Transfers made using the wrong network or an incompatible asset may be permanently lost.
