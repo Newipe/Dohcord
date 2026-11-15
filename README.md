@@ -8,7 +8,7 @@
 
 Encrypt your DNS lookups, defeat DNS-level censorship, and stay connected on restricted networks.
 
-**Dohcord 1.7.1** adds optional [Connection Profiles](#connection-profiles): route approved Discord
+**Dohcord 1.7.2** adds optional [Connection Profiles](#connection-profiles): route approved Discord
 traffic through the built-in Newipe relay or your own compatible relay server. A profile supplies
 its own routing policy, and DoH is disabled while one is active.
 
@@ -163,6 +163,7 @@ rest of your computer are never affected.
 | -------------- | ---------------------------------------------------------------------------------------------------------------------- |
 | **No Profile** | Direct connection. Discord uses the same networking as a normal Discord client.                                        |
 | **Newipe**     | Built-in profile that uses Newipe's relay infrastructure. No configuration required.                                   |
+| **Newipe 2**   | Backup Newipe relay, selectable when the primary server is unreachable. No configuration required.                     |
 | **Custom**     | Your own compatible Dohcord-relay server. Only the profile name and the server's Network Configuration URL are needed. |
 
 A profile is **not** a VPN. Only approved Discord HTTPS and WebSocket destinations use the proxy;

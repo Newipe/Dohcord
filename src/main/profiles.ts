@@ -422,7 +422,7 @@ async function readConfigJson(response: Awaited<ReturnType<Electron.Session["fet
         throw new Error("The Network Configuration endpoint did not return JSON");
     }
 
-    const body = response.body;
+    const { body } = response;
     if (!body) {
         const text = await response.text();
         if (Buffer.byteLength(text) > MAX_NETWORK_CONFIG_BYTES) {
