@@ -617,8 +617,8 @@ static/views/        Splash, first-launch and updater windows
 
 If you find Dohcord useful, you can support its continued development with a crypto donation:
 
-| Network | Address |
-| ------- | ------- |
+| Network   | Address                                      |
+| --------- | -------------------------------------------- |
 | **BEP20** | `0xdF83aB1a352018e3b5e2baBe19385C9BB54c0D11` |
 | **TRC20** | `TXRYotwP995tcW6H91JtZCgiCjzyYdqxau`         |
 
