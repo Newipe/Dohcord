@@ -20,6 +20,7 @@ its own routing policy, and DoH is disabled while one is active.
 </div>
 
 ---
+
 <table>
   <tr>
     <td align="center">
@@ -33,12 +34,11 @@ its own routing policy, and DoH is disabled while one is active.
       <img
         src="https://github.com/user-attachments/assets/07c7470a-9219-4b03-8358-9c756bc372aa"
         alt="Dohcord Settings"
-        width="440"
+        width="900"
       />
     </td>
   </tr>
 </table>
-
 
 ## Table of Contents
 
