@@ -18,7 +18,14 @@ import { DATA_DIR } from "./constants";
 import { createFirstLaunchTour } from "./firstLaunch";
 import { createWindows, mainWin, openDeepLink } from "./mainWindow";
 import { registerMediaPermissionsHandler } from "./mediaPermissions";
-import { applySelectedProfile, enforceDohPolicy, initProfiles, isProfileActive } from "./profiles";
+import {
+    applySelectedProfile,
+    enforceDohPolicy,
+    getSelectedProfileId,
+    initProfiles,
+    isProfileActive,
+    refreshBuiltInProfiles
+} from "./profiles";
 import { registerScreenShareHandler } from "./screenShare";
 import { Settings, State } from "./settings";
 import { setAsDefaultProtocolClient } from "./utils/setAsDefaultProtocolClient";
@@ -127,6 +134,18 @@ function init() {
         // The selected profile decides whether DoH may start, so it is resolved first
         initProfiles();
         applyDohSettings();
+
+        // Built-in profiles are refreshed from the repository at startup so relay
+        // addresses can change without a release. With a profile selected, wait for
+        // the refresh so the current address is applied before Discord loads; on
+        // Direct Connection refresh in the background and never delay startup.
+        if (getSelectedProfileId()) {
+            await refreshBuiltInProfiles();
+        } else {
+            void refreshBuiltInProfiles().then(changed => {
+                if (changed && getSelectedProfileId()) void applySelectedProfile();
+            });
+        }
 
         // A selected profile must install its proxy policy before Discord loads,
         // so no approved destination is ever sent direct while it is set up

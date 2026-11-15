@@ -24,12 +24,21 @@ export const DIRECT_PROFILE_VALUE = "direct";
 export const DOH_PROFILE_BLOCK_MESSAGE = "DoH is unavailable while a Network Profile is enabled.";
 
 export const MAX_CUSTOM_PROFILES = 20;
+export const MAX_BUILTIN_PROFILES = 16;
 export const MAX_PROFILE_NAME_LENGTH = 64;
 export const MAX_NETWORK_CONFIG_URL_LENGTH = 512;
 export const MAX_ROUTING_DOMAINS = 64;
 export const MAX_PORT_RANGES_PER_DOMAIN = 16;
 /** Largest Network Configuration response Dohcord will read */
 export const MAX_NETWORK_CONFIG_BYTES = 64 * 1024;
+/** Largest built-in profile list Dohcord will read */
+export const MAX_PROFILES_FILE_BYTES = 32 * 1024;
+
+/**
+ * The repository copy of profiles.json. Built-in profiles are refreshed from here
+ * on startup so a relay address can change without shipping a new app version.
+ */
+export const REMOTE_PROFILES_URL = "https://raw.githubusercontent.com/Newipe/Dohcord/main/profiles.json";
 
 /**
  * Used by the PAC script when a destination matches the policy but its port is
@@ -167,9 +176,31 @@ export function isValidProfileId(value: unknown): value is string {
     return typeof value === "string" && PROFILE_ID.test(value);
 }
 
-/** Parses the packaged profiles.json */
+/** Parses the packaged profiles.json, or the repository copy of it */
 export function parsePackagedProfiles(value: unknown): ConnectionProfile[] {
-    return parseProfileList(value, "builtin");
+    return parseProfileList(value, "builtin").slice(0, MAX_BUILTIN_PROFILES);
+}
+
+/**
+ * Merges the built-in profiles shipped with the app and the repository copy.
+ * The repository copy wins for matching ids and may add new profiles, while
+ * packaged profiles missing from it are kept so a broken download cannot remove
+ * a profile the user relies on. Ids reserved by custom profiles are ignored.
+ */
+export function mergeBuiltInProfiles(
+    packaged: ConnectionProfile[],
+    remote: ConnectionProfile[],
+    reservedIds: Iterable<string> = []
+): ConnectionProfile[] {
+    const reserved = new Set(reservedIds);
+    const merged = new Map(packaged.map(profile => [profile.id, profile]));
+
+    for (const profile of remote.slice(0, MAX_BUILTIN_PROFILES)) {
+        if (reserved.has(profile.id)) continue;
+        merged.set(profile.id, profile);
+    }
+
+    return [...merged.values()];
 }
 
 /** Parses the user's custom-profiles.json */

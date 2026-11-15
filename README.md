@@ -207,6 +207,10 @@ The endpoint is stored in the profile. Newipe's built-in profile uses:
 https://13.48.244.118:8443/network-config
 ```
 
+The built-in profile list itself is refreshed from the repository at startup, so relay addresses can
+be corrected without shipping a new app version. See
+[Keeping built-in profiles current](#keeping-built-in-profiles-current).
+
 You do not need to enter proxy addresses, ports, TURN servers, credentials, destination domains or
 allowed ports. They all come from that endpoint, and so does the list of domains routed through the
 proxy.
@@ -237,6 +241,8 @@ invalid or expired configuration, you get an error and can retry or pick another
 - The built-in **Newipe** profile cannot be edited or removed.
 - Your selection is remembered after Dohcord restarts.
 - Select **No Profile — Direct Connection** to return to normal direct networking.
+- Built-in profiles (Newipe and Newipe 2) can also be updated by changing `profiles.json` in the
+  repository — no app release is needed.
 - Custom profile names and URLs live in `custom-profiles.json` in the
   [data directory](#manually-when-discord-will-not-load). They are kept separate from the
   built-in profiles shipped with the app.
@@ -274,6 +280,25 @@ response carries a versioned policy:
 - The configuration is fetched over HTTPS through a session that never uses the profile proxy, with
   normal certificate validation, a timeout, a response size limit and full schema validation. DoH is
   not used for that fetch.
+
+### Keeping built-in profiles current
+
+On startup Dohcord downloads the repository copy of `profiles.json` over HTTPS:
+
+```text
+https://raw.githubusercontent.com/Newipe/Dohcord/main/profiles.json
+```
+
+- A built-in profile with the same id is replaced by the repository entry, so changing a relay's
+  Network Configuration URL takes effect on the next launch without a Dohcord update.
+- New ids in that file become additional built-in profiles.
+- Packaged profiles missing from the downloaded file are kept, so a broken or truncated download
+  cannot remove a profile you rely on.
+- If the file cannot be reached or is invalid, the profiles packaged with the app stay in use.
+  Custom profiles are never touched.
+- The download is size limited and validated with the same rules as packaged profiles; invalid or
+  non-HTTPS URLs are discarded.
+- The address is read at startup, so restart Dohcord after editing the repository copy.
 
 ### Connection behaviour
 

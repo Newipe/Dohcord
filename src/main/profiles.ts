@@ -17,12 +17,15 @@ import {
     isValidProfileId,
     MAX_CUSTOM_PROFILES,
     MAX_NETWORK_CONFIG_BYTES,
+    MAX_PROFILES_FILE_BYTES,
+    mergeBuiltInProfiles,
     normalizeNetworkConfigUrl,
     normalizeProfileName,
     type NetworkConfigResult,
     parseCustomProfiles,
     parseNetworkConfig,
     parsePackagedProfiles,
+    REMOTE_PROFILES_URL,
     type ProfileNetworkConfig,
     type ProfilesSnapshot,
     type ProfileSaveResult,
@@ -38,6 +41,8 @@ const PACKAGED_PROFILES_PATH = join(app.getAppPath(), "profiles.json");
 const CUSTOM_PROFILES_PATH = join(DATA_DIR, "custom-profiles.json");
 
 const CONFIG_TIMEOUT_MS = 10_000;
+/** The repository profile list is optional; never delay startup for long */
+const PROFILES_TIMEOUT_MS = 3_000;
 const PROXY_CHECK_TIMEOUT_MS = 8_000;
 /** Temporary credentials are refreshed this long before they expire */
 const EXPIRY_MARGIN_MS = 60_000;
@@ -79,8 +84,69 @@ export function initProfiles() {
     enforceDohPolicy();
 
     Settings.addChangeListener("profileId", () => void applySelectedProfile());
+}
 
-    void applySelectedProfile();
+/**
+ * Refreshes the built-in profiles from the repository so relay addresses can be
+ * changed without releasing a new version. Failures keep the packaged copy.
+ * Returns whether anything changed.
+ */
+export async function refreshBuiltInProfiles(): Promise<boolean> {
+    let response: Awaited<ReturnType<Electron.Session["fetch"]>>;
+
+    try {
+        response = await getConfigSession().fetch(REMOTE_PROFILES_URL, {
+            method: "GET",
+            redirect: "error",
+            cache: "no-store",
+            headers: { Accept: "application/json" },
+            signal: AbortSignal.timeout(PROFILES_TIMEOUT_MS)
+        });
+    } catch (err) {
+        console.warn("[Profiles] Could not update built-in profiles:", errorMessage(err));
+        return false;
+    }
+
+    if (!response.ok) {
+        console.warn(`[Profiles] Built-in profile list returned HTTP ${response.status}`);
+        return false;
+    }
+
+    let remote: ConnectionProfile[];
+    try {
+        const json = await readBoundedJson(response, MAX_PROFILES_FILE_BYTES, {
+            requireJsonContentType: false,
+            label: "The built-in profile list"
+        });
+        remote = parsePackagedProfiles(json);
+    } catch (err) {
+        console.warn("[Profiles] Ignoring an unreadable built-in profile list:", errorMessage(err));
+        return false;
+    }
+
+    if (!remote.length) {
+        console.warn("[Profiles] Ignoring an empty built-in profile list");
+        return false;
+    }
+
+    const merged = mergeBuiltInProfiles(
+        packagedProfiles,
+        remote,
+        customProfiles.map(profile => profile.id)
+    );
+
+    const changed = JSON.stringify(merged) !== JSON.stringify(packagedProfiles);
+    if (!changed) return false;
+
+    packagedProfiles = merged;
+    // A primed configuration belongs to the old list; refetch from the new URL
+    primed = undefined;
+
+    console.log(
+        `[Profiles] Updated built-in profiles from the repository: ${merged.map(profile => profile.name).join(", ")}`
+    );
+
+    return true;
 }
 
 /** Whether a non-direct profile is selected, regardless of whether it is usable */
@@ -407,7 +473,10 @@ export async function fetchNetworkConfig(url: string): Promise<NetworkConfigResu
 
     let json: unknown;
     try {
-        json = await readConfigJson(response);
+        json = await readBoundedJson(response, MAX_NETWORK_CONFIG_BYTES, {
+            requireJsonContentType: true,
+            label: "The Network Configuration endpoint"
+        });
     } catch (err) {
         return { ok: false, error: err instanceof Error ? err.message : String(err) };
     }
@@ -415,24 +484,28 @@ export async function fetchNetworkConfig(url: string): Promise<NetworkConfigResu
     return parseNetworkConfig(json);
 }
 
-/** Reads a bounded JSON body; the endpoint is untrusted and must not exhaust memory */
-async function readConfigJson(response: Awaited<ReturnType<Electron.Session["fetch"]>>): Promise<unknown> {
+/** Reads a bounded JSON body; remote responses are untrusted and must not exhaust memory */
+async function readBoundedJson(
+    response: Awaited<ReturnType<Electron.Session["fetch"]>>,
+    maxBytes: number,
+    options: { requireJsonContentType: boolean; label: string }
+): Promise<unknown> {
     const contentType = response.headers.get("content-type");
-    if (contentType && !/json/i.test(contentType)) {
-        throw new Error("The Network Configuration endpoint did not return JSON");
+    if (options.requireJsonContentType && contentType && !/json/i.test(contentType)) {
+        throw new Error(`${options.label} did not return JSON`);
     }
 
     const { body } = response;
     if (!body) {
         const text = await response.text();
-        if (Buffer.byteLength(text) > MAX_NETWORK_CONFIG_BYTES) {
-            throw new Error("The Network Configuration response is too large");
+        if (Buffer.byteLength(text) > maxBytes) {
+            throw new Error(`${options.label} response is too large`);
         }
 
         try {
             return JSON.parse(text);
         } catch {
-            throw new Error("The Network Configuration endpoint did not return valid JSON");
+            throw new Error(`${options.label} did not return valid JSON`);
         }
     }
 
@@ -446,9 +519,9 @@ async function readConfigJson(response: Awaited<ReturnType<Electron.Session["fet
         if (!value) continue;
 
         total += value.byteLength;
-        if (total > MAX_NETWORK_CONFIG_BYTES) {
+        if (total > maxBytes) {
             await reader.cancel().catch(() => {});
-            throw new Error("The Network Configuration response is too large");
+            throw new Error(`${options.label} response is too large`);
         }
 
         chunks.push(value);
@@ -457,7 +530,7 @@ async function readConfigJson(response: Awaited<ReturnType<Electron.Session["fet
     try {
         return JSON.parse(Buffer.concat(chunks.map(chunk => Buffer.from(chunk))).toString("utf8"));
     } catch {
-        throw new Error("The Network Configuration endpoint did not return valid JSON");
+        throw new Error(`${options.label} did not return valid JSON`);
     }
 }
 

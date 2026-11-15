@@ -13,8 +13,11 @@ import {
     DOH_PROFILE_BLOCK_MESSAGE,
     MAX_NETWORK_CONFIG_BYTES,
     MAX_ROUTING_DOMAINS,
+    mergeBuiltInProfiles,
     parseNetworkConfig,
+    parsePackagedProfiles,
     type ProfileNetworkConfig,
+    REMOTE_PROFILES_URL,
     resolveEffectiveDoh
 } from "../../src/shared/profiles";
 
@@ -295,6 +298,69 @@ const turnConfig = parsed({
 assert.ok(turnConfig.rtcRelay, "TURN configuration must be preserved");
 assert.ok(!buildPacScript(turnConfig).includes(credentials), "TURN credentials must not reach the PAC script");
 assert.ok(!buildPacScript(turnConfig).includes("turn:"), "TURN must stay out of the PAC script");
+
+/* ---------------------------------------------------------------- */
+/* Built-in profiles are refreshed from the repository               */
+/* ---------------------------------------------------------------- */
+
+assert.ok(REMOTE_PROFILES_URL.endsWith("/Newipe/Dohcord/main/profiles.json"));
+
+const packaged = parsePackagedProfiles([
+    {
+        id: "newipe",
+        name: "Newipe",
+        networkConfigUrl: "https://old-relay.example/network-config",
+        type: "builtin"
+    }
+]);
+const remote = parsePackagedProfiles([
+    {
+        id: "newipe",
+        name: "Newipe",
+        networkConfigUrl: "https://new-relay.example/network-config",
+        type: "builtin"
+    },
+    {
+        id: "newipe-3",
+        name: "Newipe 3",
+        networkConfigUrl: "https://third-relay.example/network-config",
+        type: "builtin"
+    }
+]);
+
+const mergedProfiles = mergeBuiltInProfiles(packaged, remote);
+
+// A new relay address replaces the packaged one, new ids are added
+assert.equal(mergedProfiles.length, 2);
+assert.equal(
+    mergedProfiles.find(profile => profile.id === "newipe")?.networkConfigUrl,
+    "https://new-relay.example/network-config"
+);
+assert.ok(mergedProfiles.some(profile => profile.id === "newipe-3"));
+
+// A packaged profile missing from the remote copy is kept
+const kept = mergeBuiltInProfiles(
+    [
+        ...packaged,
+        { id: "legacy", name: "Legacy", networkConfigUrl: "https://legacy.example/network-config", type: "builtin" }
+    ],
+    remote
+);
+assert.ok(kept.some(profile => profile.id === "legacy"));
+
+// Remote entries cannot take over an id a custom profile already owns
+const reserved = mergeBuiltInProfiles(packaged, remote, ["newipe-3"]);
+assert.ok(!reserved.some(profile => profile.id === "newipe-3"));
+
+// Invalid URLs are dropped instead of replacing a working profile
+const invalidRemote = parsePackagedProfiles([
+    { id: "newipe", name: "Newipe", networkConfigUrl: "http://old-relay.example/network-config" }
+]);
+assert.equal(invalidRemote.length, 0);
+assert.equal(
+    mergeBuiltInProfiles(packaged, invalidRemote)[0].networkConfigUrl,
+    "https://old-relay.example/network-config"
+);
 
 /* ---------------------------------------------------------------- */
 /* Fail-closed policy while no valid configuration is available       */
