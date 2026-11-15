@@ -37,6 +37,7 @@ its own routing policy, and DoH is disabled while one is active.
 - [Building from Source](#building-from-source)
 - [Project Layout](#project-layout)
 - [Credits](#credits)
+- [Support Dohcord](#support-dohcord)
 - [License](#license)
 
 ---
@@ -611,6 +612,18 @@ static/views/        Splash, first-launch and updater windows
 - **[venmic](https://github.com/Vencord/venmic)** — audio capture for Linux screen sharing
 - **[Newipe](https://github.com/Newipe)** — this fork: DoH integration, secure DNS settings, the
   SNI-proxy resolver at `https://newipe.qd.je/dns-query` and the built-in Newipe connection profile
+
+## Support Dohcord
+
+If you find Dohcord useful, you can support its continued development with a crypto donation:
+
+| Network | Address |
+| ------- | ------- |
+| **BEP20** | `0xdF83aB1a352018e3b5e2baBe19385C9BB54c0D11` |
+| **TRC20** | `TXRYotwP995tcW6H91JtZCgiCjzyYdqxau` |
+
+> [!IMPORTANT]
+> Make sure you select the correct network before sending. Only send an asset supported by the receiving address on that network. Transfers made using the wrong network or an incompatible asset may be permanently lost.
 
 ## License
 
