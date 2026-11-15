@@ -20,6 +20,25 @@ its own routing policy, and DoH is disabled while one is active.
 </div>
 
 ---
+<table>
+  <tr>
+    <td align="center">
+      <img
+        src="https://github.com/user-attachments/assets/df42c9a8-6270-46d6-929b-f0c58414a5f0"
+        alt="Dohcord First-Launch"
+        width="440"
+      />
+    </td>
+    <td align="center">
+      <img
+        src="https://github.com/user-attachments/assets/07c7470a-9219-4b03-8358-9c756bc372aa"
+        alt="Dohcord Settings"
+        width="440"
+      />
+    </td>
+  </tr>
+</table>
+
 
 ## Table of Contents
 
