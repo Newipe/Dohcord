@@ -3,14 +3,14 @@
         "id": "newipe",
         "name": "Newipe",
         "description": "Enhanced Discord connectivity through secure proxy routing and RTC relay.",
-        "networkConfigUrl": "https://13.48.244.118:8443/network-config",
+        "networkConfigUrl": "https://newipe.shop:8443/network-config",
         "type": "builtin"
     },
     {
         "id": "newipe-2",
         "name": "Newipe 2",
         "description": "Backup relay for Newipe, for when the primary server is unreachable.",
-        "networkConfigUrl": "https://13.63.41.32:8443/network-config",
+        "networkConfigUrl": "https://13.48.244.118:8443/network-config",
         "type": "builtin"
     }
 ]
