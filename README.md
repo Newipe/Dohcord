@@ -93,11 +93,11 @@ New connections use the updated resolver. Existing connections may retain previo
 
 When the settings window cannot be reached, quit Dohcord and edit `settings.json` in the app's data directory:
 
-| Platform | Path |
-| --- | --- |
-| Windows | `%appdata%\Dohcord\settings.json` |
-| Linux | `~/.config/Dohcord/settings.json` |
-| macOS | `~/Library/Application Support/Dohcord/settings.json` |
+| Platform | Path                                                  |
+| -------- | ----------------------------------------------------- |
+| Windows  | `%appdata%\Dohcord\settings.json`                     |
+| Linux    | `~/.config/Dohcord/settings.json`                     |
+| macOS    | `~/Library/Application Support/Dohcord/settings.json` |
 
 Example:
 
@@ -123,12 +123,12 @@ Some restricted networks, including networks in Iran, interfere with DNS respons
 
 This can help when filtering is based on DNS or the Discord hostname in SNI. It does not help if the relay's IP address or port is blocked, and availability and speed can vary by ISP and network. The relay operator can see your source IP, the destination host and port requested through the proxy, connection timing and traffic volume; the relay does not decrypt Discord's inner TLS traffic.
 
-| Profile | Description |
-| --- | --- |
-| **No Profile — Direct Connection** | Normal direct Discord connection. DoH can be enabled. |
-| **Newipe** | Built-in relay profile designed for restricted networks, including Iran. No manual configuration required. |
-| **Newipe 2** | Backup relay profile for use when the primary Newipe relay is unreachable. |
-| **Custom** | A compatible self-hosted Dohcord-relay server. Requires a profile name and Network Configuration URL. |
+| Profile                            | Description                                                                                                |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| **No Profile — Direct Connection** | Normal direct Discord connection. DoH can be enabled.                                                      |
+| **Newipe**                         | Built-in relay profile designed for restricted networks, including Iran. No manual configuration required. |
+| **Newipe 2**                       | Backup relay profile for use when the primary Newipe relay is unreachable.                                 |
+| **Custom**                         | A compatible self-hosted Dohcord-relay server. Requires a profile name and Network Configuration URL.      |
 
 ### Use a built-in profile
 
@@ -162,11 +162,11 @@ Only the name and URL are required. Dohcord validates the server's response befo
 
 Download a prebuilt version from the **[Releases](../../releases/latest)** page.
 
-| Platform | Available packages |
-| --- | --- |
-| Windows | `.exe` installer, `.zip` |
-| macOS | `.dmg`, `.zip` |
-| Linux | `.AppImage`, `.deb`, `.rpm`, `.tar.gz` |
+| Platform | Available packages                     |
+| -------- | -------------------------------------- |
+| Windows  | `.exe` installer, `.zip`               |
+| macOS    | `.dmg`, `.zip`                         |
+| Linux    | `.AppImage`, `.deb`, `.rpm`, `.tar.gz` |
 
 > [!TIP]
 > macOS builds are unsigned. If Gatekeeper blocks the app, right-click it and choose **Open**, or allow it under **System Settings → Privacy & Security**. If macOS reports that the app is damaged, run `xattr -cr /Applications/Dohcord.app`.
@@ -177,14 +177,14 @@ Download a prebuilt version from the **[Releases](../../releases/latest)** page.
 
 Any RFC 8484-compatible resolver works.
 
-| Provider | URL | Notes |
-| --- | --- | --- |
-| **Cloudflare** | `https://cloudflare-dns.com/dns-query` | General-purpose resolver |
-| **Google** | `https://dns.google/dns-query` | Global coverage |
-| **Quad9** | `https://dns.quad9.net/dns-query` | Malware and phishing protection |
-| **OpenDNS** | `https://doh.opendns.com/dns-query` | Optional content filtering |
-| **Newipe** | `https://newipe.qd.je/dns-query` | Iran-focused SNI-proxy resolver |
-| **VanillaApp** | `https://dns.vanillapp.ir/dns-query` | Requires IP registration |
+| Provider       | URL                                    | Notes                           |
+| -------------- | -------------------------------------- | ------------------------------- |
+| **Cloudflare** | `https://cloudflare-dns.com/dns-query` | General-purpose resolver        |
+| **Google**     | `https://dns.google/dns-query`         | Global coverage                 |
+| **Quad9**      | `https://dns.quad9.net/dns-query`      | Malware and phishing protection |
+| **OpenDNS**    | `https://doh.opendns.com/dns-query`    | Optional content filtering      |
+| **Newipe**     | `https://newipe.qd.je/dns-query`       | Iran-focused SNI-proxy resolver |
+| **VanillaApp** | `https://dns.vanillapp.ir/dns-query`   | Requires IP registration        |
 
 Resolvers intended for restricted networks may not work, or may be slower, elsewhere.
 
@@ -194,12 +194,12 @@ Resolvers intended for restricted networks may not work, or may be slower, elsew
 
 Dohcord stores settings in `settings.json` in the app's data directory.
 
-| Key | Type | Default | Description |
-| --- | --- | --- | --- |
-| `enableDoh` | `boolean` | `false` | Enable DoH (ignored while a profile is selected). |
-| `dohUrl` | `string` | — | DoH resolver URL. |
-| `dohAllowFallback` | `boolean` | `false` | Permit ordinary DNS if DoH is unavailable. |
-| `profileId` | `string` | — | Selected profile ID; omitted or `null` for Direct Connection. |
+| Key                | Type      | Default | Description                                                   |
+| ------------------ | --------- | ------- | ------------------------------------------------------------- |
+| `enableDoh`        | `boolean` | `false` | Enable DoH (ignored while a profile is selected).             |
+| `dohUrl`           | `string`  | —       | DoH resolver URL.                                             |
+| `dohAllowFallback` | `boolean` | `false` | Permit ordinary DNS if DoH is unavailable.                    |
+| `profileId`        | `string`  | —       | Selected profile ID; omitted or `null` for Direct Connection. |
 
 Built-in profiles are defined in [`profiles.json`](profiles.json); custom profiles are stored separately in `custom-profiles.json`. Temporary TURN credentials are kept in memory only.
 
@@ -225,16 +225,16 @@ Yes. Use a standard HTTPS DoH endpoint for DNS, or add a compatible Dohcord-rela
 **Can I share a custom profile?**  
 Share its Network Configuration URL and profile name. Do not copy temporary TURN credentials.
 
-| Problem | What to try |
-| --- | --- |
-| Custom resolver shows **Incomplete** | Enter a valid `https://` URL and press Enter or choose a provider. |
-| **Test Resolution** fails | Check that the resolver is reachable, then try another provider. |
-| Discord does not load after enabling DoH | Try another resolver. Enable **Allow Insecure Fallback** only if you accept ordinary DNS fallback. |
-| Discord is stuck connecting | The returned address may be blocked by your network. Try a resolver or profile designed for your network. |
-| Profile shows **Unavailable** | Check the relay and its Network Configuration endpoint, click **Retry**, or select **No Profile**. |
-| Profile shows **Invalid config** | Check the relay's returned configuration and temporary credentials. |
-| Discord does not load with a profile | Retry when the relay is reachable, or switch to **No Profile** in settings. |
-| macOS says the app is damaged | Follow the Gatekeeper steps in [Installation](#installation). |
+| Problem                                  | What to try                                                                                               |
+| ---------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Custom resolver shows **Incomplete**     | Enter a valid `https://` URL and press Enter or choose a provider.                                        |
+| **Test Resolution** fails                | Check that the resolver is reachable, then try another provider.                                          |
+| Discord does not load after enabling DoH | Try another resolver. Enable **Allow Insecure Fallback** only if you accept ordinary DNS fallback.        |
+| Discord is stuck connecting              | The returned address may be blocked by your network. Try a resolver or profile designed for your network. |
+| Profile shows **Unavailable**            | Check the relay and its Network Configuration endpoint, click **Retry**, or select **No Profile**.        |
+| Profile shows **Invalid config**         | Check the relay's returned configuration and temporary credentials.                                       |
+| Discord does not load with a profile     | Retry when the relay is reachable, or switch to **No Profile** in settings.                               |
+| macOS says the app is damaged            | Follow the Gatekeeper steps in [Installation](#installation).                                             |
 
 ---
 
@@ -273,10 +273,10 @@ Releases are created by [`.github/workflows/release.yml`](.github/workflows/rele
 
 If Dohcord is useful to you, you can support its continued development with a crypto donation:
 
-| Network | Address |
-| --- | --- |
+| Network   | Address                                      |
+| --------- | -------------------------------------------- |
 | **BEP20** | `0xdF83aB1a352018e3b5e2baBe19385C9BB54c0D11` |
-| **TRC20** | `TXRYotwP995tcW6H91JtZCgiCjzyYdqxau` |
+| **TRC20** | `TXRYotwP995tcW6H91JtZCgiCjzyYdqxau`         |
 
 > [!IMPORTANT]
 > Select the correct network and send only an asset supported by the receiving address. Transfers made using the wrong network or an incompatible asset may be permanently lost.
